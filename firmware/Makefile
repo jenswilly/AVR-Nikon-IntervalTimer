@@ -18,9 +18,9 @@ DEVICE     = atmega168
 CLOCK      = 12000000
 PROGRAMMER = -c avrispmkII -P usb
 OBJECTS    = main.o	5110LCD.o
-FUSES      = -U lfuse:w:0xf7:m -U hfuse:w:0xde:m -U efuse:w:0x00:m
+FUSES      = -U lfuse:w:0xf7:m -U hfuse:w:0xdf:m -U efuse:w:0x00:m
 
-// for ATmega168 PA: ext. full-swing xtal, slow start-up; BOD 1.8V; SPI enabled; boot reset enabled; 1k words boot sector
+// for ATmega168 PA: ext. full-swing xtal, slow start-up; BOD disabled; SPI enabled; boot reset enabled; 1k words boot sector
 
 # AVR fuse calculator
 # http://www.engbedded.com/fusecalc/

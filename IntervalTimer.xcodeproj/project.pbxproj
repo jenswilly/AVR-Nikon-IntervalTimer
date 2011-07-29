@@ -11,6 +11,7 @@
 		470E52D413DD832F00C82516 /* Makefile */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.make; path = Makefile; sourceTree = "<group>"; };
 		470E52E613DD85A800C82516 /* 5110LCD.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = 5110LCD.c; sourceTree = "<group>"; };
 		470E52E713DD85A800C82516 /* 5110LCD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = 5110LCD.h; sourceTree = "<group>"; };
+		47394E6F13E2D730002D024D /* images.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = images.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -28,6 +29,7 @@
 				470E52E713DD85A800C82516 /* 5110LCD.h */,
 				470E52D313DD832F00C82516 /* main.c */,
 				470E52D413DD832F00C82516 /* Makefile */,
+				47394E6F13E2D730002D024D /* images.h */,
 			);
 			path = firmware;
 			sourceTree = "<group>";
