@@ -1,0 +1,216 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXFileReference section */
+		470E52D313DD832F00C82516 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		470E52D413DD832F00C82516 /* Makefile */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.make; path = Makefile; sourceTree = "<group>"; };
+		470E52E613DD85A800C82516 /* 5110LCD.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = 5110LCD.c; sourceTree = "<group>"; };
+		470E52E713DD85A800C82516 /* 5110LCD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = 5110LCD.h; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		470E52C813DD832E00C82516 = {
+			isa = PBXGroup;
+			children = (
+				470E52D213DD832F00C82516 /* firmware */,
+			);
+			sourceTree = "<group>";
+		};
+		470E52D213DD832F00C82516 /* firmware */ = {
+			isa = PBXGroup;
+			children = (
+				470E52E613DD85A800C82516 /* 5110LCD.c */,
+				470E52E713DD85A800C82516 /* 5110LCD.h */,
+				470E52D313DD832F00C82516 /* main.c */,
+				470E52D413DD832F00C82516 /* Makefile */,
+			);
+			path = firmware;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXLegacyTarget section */
+		470E52CF13DD832F00C82516 /* build */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "all -C firmware";
+			buildConfigurationList = 470E52D713DD832F00C82516 /* Build configuration list for PBXLegacyTarget "build" */;
+			buildPhases = (
+			);
+			buildToolPath = make;
+			buildWorkingDirectory = "";
+			dependencies = (
+			);
+			name = build;
+			passBuildSettingsInEnvironment = 1;
+			productName = build;
+		};
+		470E52D013DD832F00C82516 /* fuse */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "fuse -C firmware";
+			buildConfigurationList = 470E52DA13DD832F00C82516 /* Build configuration list for PBXLegacyTarget "fuse" */;
+			buildPhases = (
+			);
+			buildToolPath = /usr/bin/make;
+			buildWorkingDirectory = "";
+			dependencies = (
+			);
+			name = fuse;
+			passBuildSettingsInEnvironment = 1;
+			productName = fuse;
+		};
+		470E52D113DD832F00C82516 /* flash */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "flash -C firmware";
+			buildConfigurationList = 470E52DD13DD832F00C82516 /* Build configuration list for PBXLegacyTarget "flash" */;
+			buildPhases = (
+			);
+			buildToolPath = /usr/bin/make;
+			buildWorkingDirectory = "";
+			dependencies = (
+			);
+			name = flash;
+			passBuildSettingsInEnvironment = 1;
+			productName = flash;
+		};
+/* End PBXLegacyTarget section */
+
+/* Begin PBXProject section */
+		470E52CA13DD832E00C82516 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				ORGANIZATIONNAME = "Greener Pastures";
+			};
+			buildConfigurationList = 470E52CD13DD832E00C82516 /* Build configuration list for PBXProject "IntervalTimer" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 470E52C813DD832E00C82516;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				470E52CF13DD832F00C82516 /* build */,
+				470E52D013DD832F00C82516 /* fuse */,
+				470E52D113DD832F00C82516 /* flash */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin XCBuildConfiguration section */
+		470E52D513DD832F00C82516 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = DEBUG;
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PATH = "$(PATH):/usr/local/CrossPack-AVR/bin";
+			};
+			name = Debug;
+		};
+		470E52D613DD832F00C82516 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PATH = "$(PATH):/usr/local/CrossPack-AVR/bin";
+			};
+			name = Release;
+		};
+		470E52D813DD832F00C82516 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		470E52D913DD832F00C82516 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		470E52DB13DD832F00C82516 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		470E52DC13DD832F00C82516 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		470E52DE13DD832F00C82516 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		470E52DF13DD832F00C82516 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		470E52CD13DD832E00C82516 /* Build configuration list for PBXProject "IntervalTimer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				470E52D513DD832F00C82516 /* Debug */,
+				470E52D613DD832F00C82516 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		470E52D713DD832F00C82516 /* Build configuration list for PBXLegacyTarget "build" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				470E52D813DD832F00C82516 /* Debug */,
+				470E52D913DD832F00C82516 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		470E52DA13DD832F00C82516 /* Build configuration list for PBXLegacyTarget "fuse" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				470E52DB13DD832F00C82516 /* Debug */,
+				470E52DC13DD832F00C82516 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		470E52DD13DD832F00C82516 /* Build configuration list for PBXLegacyTarget "flash" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				470E52DE13DD832F00C82516 /* Debug */,
+				470E52DF13DD832F00C82516 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 470E52CA13DD832E00C82516 /* Project object */;
+}
