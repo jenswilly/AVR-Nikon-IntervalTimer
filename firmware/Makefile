@@ -69,6 +69,8 @@ main.elf: $(OBJECTS)
 main.hex: main.elf
 	rm -f main.hex
 	avr-objcopy -j .text -j .data -O ihex main.elf main.hex
+	avr-size main.elf
+	avr-size main.hex
 # If you have an EEPROM section, you must also create a hex file for the
 # EEPROM and add it to the "flash" target.
 

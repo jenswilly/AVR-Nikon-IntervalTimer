@@ -148,7 +148,7 @@ static const unsigned char smallFont[] PROGMEM =
 
 //******* VERY LARGE FONTS ********** 
 //used here for displaying temperature
-#if 1
+#if 0
 
 static const unsigned char number[13][3][16] PROGMEM = {
 
@@ -313,7 +313,7 @@ void LCD_init ( void )
 	SET_RST_PIN;
 			  
 	LCD_writeCommand( 0x21 );  // LCD Extended Commands.
-	LCD_writeCommand( 0xAC );  // Set LCD Vop (Contrast): straight=0xA8, slight up=0xAC
+	LCD_writeCommand( 0x9C );  // Set LCD Vop (Contrast): straight=0xA8, slight up=0xAC
 	LCD_writeCommand( 0x04 );  // Set Temp coefficent.
 	LCD_writeCommand( 0x15 );  // LCD bias mode 1:48.
 	LCD_writeCommand( 0x20 );  // LCD Standard Commands, Horizontal addressing mode.
@@ -595,7 +595,7 @@ void LCD_writeChar (unsigned char ch)
 		LCD_writeData(lcd_buffer[cursor_row][cursor_col++]);
 } 
 
-#if 1
+#if 0
 
 /*--------------------------------------------------------------------------------------------------
   Name         :  LCD_writeChar_megaFont
