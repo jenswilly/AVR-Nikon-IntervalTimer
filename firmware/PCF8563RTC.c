@@ -41,16 +41,32 @@ void readRTCClock( unsigned char *year, unsigned char *month, unsigned char *day
 	unsigned char read;
 	read = i2c_readdata( 2, RTC_ID, RTC_ADDR, data, 7 );
 	
-	if( read == 7 )
-	{
-		*second = bcdToDec( data[0] );
-		*minute = bcdToDec( data[1] );
-		*hour = bcdToDec( data[1] );
-		*day = bcdToDec( data[1] );
-		*weekDay = bcdToDec( data[1] );
-		*month = bcdToDec( data[1] );
+//	if( read == 7 )
+//	{
+		*second = bcdToDec( (data[0] & 0x7F) );
+		*minute = bcdToDec( (data[1] & 0x7F) );
+		*hour = bcdToDec( (data[1] & 0x3F) );
+		*day = bcdToDec( (data[1] & 0x3F) );
+		*weekDay = bcdToDec( (data[1] & 0x03) );
+		*month = bcdToDec( (data[1] & 0x1F) );	// Assumes year 2000+
 		*year = bcdToDec( data[1] );
-	}
+//	}
+}
+
+unsigned char readRTCSecond()
+{
+	char second = 0;
+	i2c_readbyte( 2, RTC_ID, RTC_ADDR, &second );
+	
+	return bcdToDec( (second & 0x7F) );	// Strip bit7 (VL)
+}
+
+unsigned char testRTCSecond()
+{
+	char second[7] = "       ";
+	i2c_readdata( 2, RTC_ID, RTC_ADDR, second, 4 );
+	
+	return bcdToDec( (second[0] & 0x7F) );	// Strip bit7 (VL)
 }
 
 // Convert normal decimal numbers to binary coded decimal
@@ -283,7 +299,7 @@ i2c_retry:
 	TWDR = (dev_id & 0xF0) | ((dev_addr << 1) & 0x0E) | TW_READ;
 	
 	// Transmit I2C Data
-	twi_status=i2c_transmit(I2C_DATA);  
+	twi_status=i2c_transmit(I2C_DATA);		// Sets TWINT and TWEN -> NACK = we don't want any more data
 	
 	// Check the TWSR status
 	if ((twi_status == TW_MR_SLA_NACK) || (twi_status == TW_MR_ARB_LOST)) 
@@ -307,11 +323,11 @@ i2c_quit:
 	return r_val;
 }
 
-int i2c_readdata( unsigned int i2c_address, unsigned int dev_id, unsigned int dev_addr, char *data, unsigned len )
+int i2c_readdata( unsigned int i2c_address, unsigned int dev_id, unsigned int dev_addr, char *data, unsigned char len )
 {
 	unsigned char n = 0;
+	unsigned char i;
 	unsigned char twi_status;
-	unsigned char twcr;
 	char r_val = -1;
 	
 i2c_retry:
@@ -366,7 +382,7 @@ i2c_retry:
 	TWDR = (dev_id & 0xF0) | ((dev_addr << 1) & 0x0E) | TW_READ;
 	
 	// Transmit I2C Data
-	twi_status=i2c_transmit(I2C_DATA);  
+	twi_status=i2c_transmit(I2C_DATA);
 	
 	// Check the TWSR status
 	if ((twi_status == TW_MR_SLA_NACK) || (twi_status == TW_MR_ARB_LOST)) 
@@ -375,37 +391,25 @@ i2c_retry:
 	if (twi_status != TW_MR_SLA_ACK) 
 		goto i2c_quit;
 	
-	// Read I2C Data
-	r_val = 0;
-	for( twcr = _BV(TWINT) | _BV(TWEN) | _BV(TWEA) /* Note [13] */;
-		 len > 0;
-		 len-- )
-    {
-		if( len == 1 )
-			twcr = _BV(TWINT) | _BV(TWEN); /* send NAK this time */
-		TWCR = twcr;              /* clear int to start transmission */
-
-		while ( !(TWCR & _BV(TWINT)) )
-			; /* wait for transmission */
+	
+	// Get bytes 0 - len-1
+	for( i=len-1; i>0; i-- )
+	{
+		// SEND ACK
+		TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWEA);	// Send ACK = we want more data
+		while( (TWCR & _BV(TWINT)) == 0 );			// wait for transmission of ACK
+		twi_status = TW_STATUS;
 		
-		switch( (twi_status = TW_STATUS) )	// TW_STATUS masks prescaler bits from status register
-        {
-			case TW_MR_DATA_NACK:
-				len = 0;              /* force end of loop */
-				/* FALLTHROUGH */
-
-			case TW_MR_DATA_ACK:
-				*data++ = TWDR;
-				r_val++;
-				break;
-				
-			default:
-				r_val = -1;
-				goto i2c_quit;
-        }
-    }
-
-	twi_status=i2c_transmit(I2C_DATA);
+		if( twi_status == TW_MR_DATA_ACK )
+			// Get data
+			*data++ = TWDR;
+		else
+			goto i2c_quit;
+	}
+	
+	// --------- GET LAST BYTE ------------- //
+	// Read I2C Data
+	twi_status=i2c_transmit(I2C_DATA);		// Sets TWINT and TWEN -> NACK = we don't want any more data
 	if (twi_status != TW_MR_DATA_NACK) 
 		goto i2c_quit;
 	
@@ -418,3 +422,4 @@ i2c_quit:
 	twi_status=i2c_transmit(I2C_STOP);
 	return r_val;
 }
+

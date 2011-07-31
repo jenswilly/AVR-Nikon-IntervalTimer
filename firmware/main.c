@@ -355,6 +355,9 @@ int main(void)
 	_delay_ms( 200 );
 	LCD_writeString_F( "Ready" );
 	
+	// Initialize RTC
+	initRTC();
+	
 	// Setup timeout counter
 	setupTimeoutCounter();
 	
@@ -383,9 +386,19 @@ int main(void)
 		}
 		if( nextCommand == CMD_CLOCKREAD )
 		{
-			serialWriteString( "\r\nCLOCKREAD.\r\n" );
 			nextCommand = CMD_NOP;
-			RESET_TIMEOUT;
+			// read clock and output on serial
+			readRTCClock( &year, &month, &day, &weekDay, &hour, &minute, &second );
+			serialWriteString( "Clock:" );
+			serialWriteByte( '0' + hour/10 );
+			serialWriteByte( '0' + hour%10 );
+			serialWriteByte( ':' );
+			serialWriteByte( '0' + minute/10 );
+			serialWriteByte( '0' + minute%10 );
+			serialWriteByte( ':' );
+			serialWriteByte( '0' + second/10 );
+			serialWriteByte( '0' + second%10 );
+			serialWriteString( "\r\n" );
 		}
 		if( nextCommand == CMD_CLOCKSET )
 		{
