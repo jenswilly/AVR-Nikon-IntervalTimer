@@ -14,13 +14,15 @@
 #                is connected.
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
-DEVICE     = atmega168
+DEVICE     = atmega328p
 CLOCK      = 12000000
 PROGRAMMER = -c avrispmkII -P usb
-OBJECTS    = main.o	5110LCD.o
-FUSES      = -U lfuse:w:0xf7:m -U hfuse:w:0xdf:m -U efuse:w:0x00:m
+OBJECTS    = main.o 5110LCD.o PCF8563RTC.o
+# FUSES      = -U lfuse:w:0xf7:m -U hfuse:w:0xdf:m -U efuse:w:0x00:m	# 168 
+FUSES	   = -U lfuse:w:0xf7:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m		# 328
 
-// for ATmega168 PA: ext. full-swing xtal, slow start-up; BOD disabled; SPI enabled; boot reset enabled; 1k words boot sector
+
+# for ATmega168 PA: ext. full-swing xtal, slow start-up; BOD disabled; SPI enabled; boot reset enabled; 1k words boot sector
 
 # AVR fuse calculator
 # http://www.engbedded.com/fusecalc/

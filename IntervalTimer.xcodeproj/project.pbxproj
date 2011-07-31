@@ -12,6 +12,8 @@
 		470E52E613DD85A800C82516 /* 5110LCD.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = 5110LCD.c; sourceTree = "<group>"; };
 		470E52E713DD85A800C82516 /* 5110LCD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = 5110LCD.h; sourceTree = "<group>"; };
 		47394E6F13E2D730002D024D /* images.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = images.h; sourceTree = "<group>"; };
+		474BB43113E4748300D9EEDE /* PCF8563RTC.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = PCF8563RTC.c; sourceTree = "<group>"; };
+		474BB43213E4748300D9EEDE /* PCF8563RTC.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PCF8563RTC.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -25,6 +27,8 @@
 		470E52D213DD832F00C82516 /* firmware */ = {
 			isa = PBXGroup;
 			children = (
+				474BB43113E4748300D9EEDE /* PCF8563RTC.c */,
+				474BB43213E4748300D9EEDE /* PCF8563RTC.h */,
 				470E52E613DD85A800C82516 /* 5110LCD.c */,
 				470E52E713DD85A800C82516 /* 5110LCD.h */,
 				470E52D313DD832F00C82516 /* main.c */,

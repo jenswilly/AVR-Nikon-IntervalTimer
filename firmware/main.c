@@ -35,15 +35,25 @@
 /* Precompiler stuff for calculating USART baud rate value 
  * Otherwise, use this page: http://www.wormfood.net/avrbaudcalc.php?postbitrate=9600&postclock=12&bit_rate_table=on
  */
-#define USART_BAUDRATE 57600	// error 0.2%
+#define USART_BAUDRATE 9600	// error 0.2%
 #define BAUD_PRESCALE (((F_CPU / (USART_BAUDRATE * 16UL))) - 1) 
 
+#define TWI_CLKRATE 100000	// 100 kHz
+#define TWI_BITRATE ((F_CPU/TWI_CLKRATE)-16)/2
+
+/* 16-bit timer output compare value for timeout delay of approx. 5 seconds
+ */
+#define TIMER_COMPARE_VALUE 0xe4e1	// ~5 secs: 12000000/1024/0.2 - 1 = 58593
+
+// Macros
+#define RESET_TIMEOUT TCNT1 = 0	// Reset timeout counter macro
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <util/delay.h>
 #include "5110LCD.h"
+#include"PCF8563RTC.h"
 #include "images.h"
 
 // Prototypes
@@ -56,32 +66,74 @@ void serialWriteByte( char data );
 void serialWriteString( const char* string );
 
 // Commands
-typedef enum
-{
-	CMD_NOP,
-	CMD_STATUS
-} CommandMode;
+#define	CMD_NOP 0
+#define	CMD_SLEEP 1
+#define	CMD_STATUS 2		// s
+#define	CMD_CLOCKSET 3		// csYYYYMMDDHHMMSS
+#define	CMD_CLOCKREAD 4		// cr
 
 // Global vars
-unsigned char SLEEP_ALLOWED = 0;
-volatile unsigned char SLEEPING = 0;
+unsigned char sleepAllowed;
+volatile unsigned char sleeping;
 unsigned char usartBuffer[20];				// USART receive buffer
-volatile unsigned int usartPtr=0;			// USART buffer pointer
-volatile CommandMode nextCommand = CMD_NOP;	// Next command mode
+volatile unsigned char usartPtr;			// USART buffer pointer
+volatile unsigned char nextCommand;			// Next command mode
+
+// Timer1 compare match interrupt used for timeout to sleep
+ISR( TIMER1_COMPA_vect )
+{
+	// Timeout reached: go to sleep if we're allowed to do so
+	if( sleepAllowed )
+		nextCommand = CMD_SLEEP;
+}
 
 // Interrupt handler for USART receive complete
 ISR( USART_RX_vect ) 
 { 
+	int i;
+	if( usartPtr >= 19 )
+		usartPtr = 0;
+	
+	// (We needn't worry about sleeping here, since we're in an interrupt handler)
+	
 	// Grab the data and but it into the buffer and increase pointer
 	usartBuffer[ usartPtr++ ] = UDR0;
 
 	// TMP: Echo
 	serialWriteByte( usartBuffer[ usartPtr-1 ] );
-
+	
 	// Check for "terminate command" bute (0x0D, \r, CR, ^M)
 	if( usartBuffer[ usartPtr-1 ] == 0x0D )
 	{
-		// Complete command received: parse it
+		if( usartBuffer[0] == 's' )
+		{
+			nextCommand = CMD_STATUS;
+			usartPtr = 0;
+			return;
+		}
+		if( usartBuffer[0] == 'q' )
+		{
+			nextCommand = CMD_CLOCKREAD;
+			usartPtr = 0;
+			return;
+		}
+		if( usartBuffer[0] == 'z' )
+		{
+			nextCommand = CMD_CLOCKSET;
+			usartPtr = 0;
+			return;
+		}
+		/*
+		if( usartBuffer[0] == 'c' )
+		{
+			if( usartBuffer[1] == 's' )
+				nextCommand = CMD_CLOCKSET;
+			else if( usartBuffer[1] == 'r' )
+				nextCommand = CMD_CLOCKREAD;
+			else
+				goto unknown_command;
+		}*/
+		/*
 		switch( usartBuffer[0] )
 		{
 			// Status
@@ -89,25 +141,29 @@ ISR( USART_RX_vect )
 				nextCommand = CMD_STATUS;
 				break;
 				
+			case 'c':
+				// Clock commands
+				if( usartBuffer[1] == 's' )
+					nextCommand = CMD_CLOCKSET;
+				else if( usartBuffer[1] == 'r' )
+					nextCommand = CMD_CLOCKREAD;
+				break;
+				
 			// Unknown command
 			default:
+				serialWriteString( "UNK\r\n" );
 				break;
 		}
-		
+		*/
 		// Reset buffer
 		usartPtr = 0;
-		
-		// Receipt
-		serialWriteString( "<\r\n" );
+		 
 	}
-	else if( usartBuffer[ usartPtr-1 ] == 27 )
-	{
-		// Escape: clear buffer
-		usartPtr = 0;
-
-		// Receipt
-		serialWriteString( "*\r\n" );
-	}
+	return;
+	
+unknown_command:
+	serialWriteString( "Unknown command\r\n" );
+	usartPtr = 0;
 	
 }
 
@@ -116,14 +172,14 @@ ISR( USART_RX_vect )
 ISR(PCINT1_vect)
 {
 	// Re-enable SPI if we were sleeping
-	if( SLEEPING )
+	if( sleeping )
 	{
 		enable_spi();
 		enable_serial();
 		
 		LCD_init();
 
-		SLEEPING = 0;
+		sleeping = 0;
 	}
 	
 	// Debounce
@@ -133,7 +189,7 @@ ISR(PCINT1_vect)
 	if( !(PINC & (1<<PC3)) )
 	{
 		// Yes: USB connected
-		SLEEP_ALLOWED = 0;
+		sleepAllowed = 0;
 		
 		// Power up 5110 LED
 		PORTB |= (1<<PB2);
@@ -141,11 +197,15 @@ ISR(PCINT1_vect)
 		// Clear LCD and draw image
 		LCD_clear();
 		LCD_drawImage( nuke );
+		
+		// And clear USART buffer
+		usartPtr = 0;
 	}
 	else
 	{
 		// No: USB disconnected
-		SLEEP_ALLOWED = 1;
+		sleepAllowed = 1;
+		RESET_TIMEOUT;
 		
 		// Clear and set text
 		LCD_clear();
@@ -174,7 +234,10 @@ void setup_ports()
 	PORTB &= ~(1<<PB2);								// LED off
 	
 	// USB connected interrupt
-	PORTC |= _BV(PC3);		// pull-up PC4/PCINT12
+	PORTC |= _BV(PC3);		// pull-up PC3/PCINT11
+	
+	// Set pull-ups on I2C pins
+	PORTC |= _BV( PC4 ) | _BV( PC5 );
 }
 
 void setup_interrupts()
@@ -198,7 +261,6 @@ void enable_serial()
 //	UCSR0C |= (1 << UCSZ00) | (1 << UCSZ01);		// 8N1 serial format. Set by default
 	UBRR0H = (BAUD_PRESCALE >> 8) & 0x0F;			// High part of baud rate masked so bits 15:12 are writted as 0 as per the datasheet (19.10.5)
 	UBRR0L = BAUD_PRESCALE;							// Low part of baud rate. Writing to UBBRnL updates baud prescaler
-
 }
 
 // Call this method to initialize SPI modules.
@@ -211,6 +273,17 @@ void enable_spi()
 #endif
 	SPCR = 0x52;			// SPI enable, master, sample on leading edge, rising, rate=Fosc/64
 	SPSR = 0;				// not 2x data rate
+}
+
+void enable_i2c()
+{
+#if POWERREDU
+	PRR &= ~(1<< PRTWI);
+#endif
+	// Set prescaler and bit rate for 100 kHz
+	// SCL frequency = 12000000 / (16 + 2 * <52> * <1>) = 100 khz
+	TWSR = 0x00;			// Select Prescaler of 1
+	TWBR = TWI_BITRATE;		// Bit rate = 52 for 100 kHz
 }
 
 void serialWriteByte( char data )
@@ -232,52 +305,113 @@ void serialWriteString( const char* string )
 // Call this method to go to sleep
 void sleep()
 {
+//	return;
+
 	// Set "sleep" display
 	LCD_clear();
 	LCD_writeString_F( "     --     " );
+	_delay_ms( 200 );
 	
 	SMCR |= (1<< SM1) | (1<< SE);	// sleep-mode=power-down, enable sleep
 #if POWERREDU
-	// No, don't power off stuff. It won't matter (in tens of µAmps, at least) but it *will* mess up SPI comm
 	PRR = 0xEF;						// turn everything off (actually, we don't need to switch everything off since power-down will turn off lots of stuff by itself)
 #endif
 	
-	SLEEPING = 1;
+	sleeping = 1;
 	asm("sleep");					// nighty, night.
 }
 
+void setupTimeoutCounter()
+{
+#if POWERREDU
+	PRR &= ~(1<< PRTIM1);		// Power-up timer1
+#endif
+	TCCR1A = 0;							// Normal mode, output compare pins disabled	
+	TCCR1B = (1<< WGM12) | (1<< CS12) | (1<< CS10);	// CTC, top at OCR1A, prescaler 1024
+	OCR1A = TIMER_COMPARE_VALUE;		// Set timer compare value
+	TIMSK1 |= (1<< OCIE1A);				// Enable timer1 output compare match interrupt
+//	RESET_TIMEOUT;
+}
+
+
+
 int main(void)
 {
-	setup_ports();
-	setup_interrupts();
+	sleeping = 0;
+	usartPtr = 0;
+	nextCommand = CMD_NOP;
 	
-	// Init SPI
+	unsigned char year, month, day, weekDay, hour, minute, second;
+	
+	setup_ports();
+	
+	// Init SPI, USART and TWI
 	enable_spi();
+	enable_serial();
+	enable_i2c();
 	
 	// Initialize LCD
 	LCD_init();
-
+	_delay_ms( 200 );
+	LCD_writeString_F( "Ready" );
+	
+	// Setup timeout counter
+	setupTimeoutCounter();
+	
 	// Enable interrupts
+	setup_interrupts();
 	sei();
 
 	// OK to go to sleep
-	SLEEP_ALLOWED = 1;
+	sleepAllowed = 0;
 	
 	// Main loop
 	for( ;; )
 	{
-		// wait 6 secs, then sleep again
-		_delay_ms( 2000 );
-		if( SLEEP_ALLOWED )
-			sleep();
-		
-		// We are awake again. 
 		// Should we handle a command?
+
 		if( nextCommand == CMD_STATUS )
 		{
-			serialWriteString( "STATUS command received.\r\n" );
-			nextCommand = CMD_NOP;	// we're done
+			serialWriteString( "\r\nSTATUS command received.\r\n" );
+			nextCommand = CMD_NOP;
+			RESET_TIMEOUT;
 		}
+		if( nextCommand == CMD_SLEEP )
+		{
+			nextCommand = CMD_NOP;
+			sleep();
+		}
+		if( nextCommand == CMD_CLOCKREAD )
+		{
+			serialWriteString( "\r\nCLOCKREAD.\r\n" );
+			nextCommand = CMD_NOP;
+			RESET_TIMEOUT;
+		}
+		if( nextCommand == CMD_CLOCKSET )
+		{
+			serialWriteString( "\r\nCLOCKSET.\r\n" );
+			nextCommand = CMD_NOP;
+			RESET_TIMEOUT;
+		}
+		/*
+		if( nextCommand == CMD_CLOCKSET )
+		{
+			nextCommand = CMD_NOP;
+			// set clock to 2011-07-30 Saturday 20:35:00
+			//setRTCClock( 11, 07, 30, 6, 20, 35, 00 );
+			serialWriteString( "\r\nTime set to 2011-07-30 (Sat) 20:35:00\r\n" );
+		}
+		 */
+		/*
+		else if( nextCommand == CMD_CLOCKREAD )
+		{
+			nextCommand = CMD_NOP;
+			// read clock and output on serial
+			//readRTCClock( &year, &month, &day, &weekDay, &hour, &minute, &second );
+			serialWriteString( "Clock read\r\n" );
+		}
+		 */
+		 _delay_ms( 100 );
 	}
 
     return 0;
