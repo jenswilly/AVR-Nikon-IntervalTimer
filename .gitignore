@@ -1,5 +1,6 @@
 *.hex
 *.o
 *.elf
+*.hex
 .DS_Store
 ./Icon.png
