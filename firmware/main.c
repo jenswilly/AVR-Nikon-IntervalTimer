@@ -402,9 +402,9 @@ int main(void)
 		}
 		if( nextCommand == CMD_CLOCKSET )
 		{
-			serialWriteString( "\r\nCLOCKSET.\r\n" );
 			nextCommand = CMD_NOP;
-			RESET_TIMEOUT;
+			setRTCClock( 11, 07, 30, 6, 20, 35, 00 );
+			serialWriteString( "\r\nTime set to 2011-07-30 (Sat) 20:35:00\r\n" );
 		}
 		/*
 		if( nextCommand == CMD_CLOCKSET )

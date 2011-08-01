@@ -45,11 +45,11 @@ void readRTCClock( unsigned char *year, unsigned char *month, unsigned char *day
 //	{
 		*second = bcdToDec( (data[0] & 0x7F) );
 		*minute = bcdToDec( (data[1] & 0x7F) );
-		*hour = bcdToDec( (data[1] & 0x3F) );
-		*day = bcdToDec( (data[1] & 0x3F) );
-		*weekDay = bcdToDec( (data[1] & 0x03) );
-		*month = bcdToDec( (data[1] & 0x1F) );	// Assumes year 2000+
-		*year = bcdToDec( data[1] );
+		*hour = bcdToDec( (data[2] & 0x3F) );
+		*day = bcdToDec( (data[3] & 0x3F) );
+		*weekDay = bcdToDec( (data[4] & 0x03) );
+		*month = bcdToDec( (data[5] & 0x1F) );	// Assumes year 2000+
+		*year = bcdToDec( data[6] );
 //	}
 }
 
@@ -136,18 +136,8 @@ i2c_retry:
 	if (twi_status != TW_MT_SLA_ACK) 
 		goto i2c_quit;
 	
-	// Send the Low 8-bit of I2C Address
-	TWDR = i2c_address;
-	
-	// Transmit I2C Data
-	twi_status=i2c_transmit(I2C_DATA);
-	
-	// Check the TWSR status
-	if (twi_status != TW_MT_DATA_ACK) 
-		goto i2c_quit;
-	
-	// Send the High 8-bit of I2C Address
-	TWDR = i2c_address >> 8;
+	// Send word address – high 4 bits are not used
+	TWDR = i2c_address & 0x0F;
 	
 	// Transmit I2C Data
 	twi_status=i2c_transmit(I2C_DATA);
