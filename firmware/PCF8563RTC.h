@@ -19,8 +19,6 @@ unsigned char bcdToDec(unsigned char val);
 unsigned char i2c_transmit(unsigned char type);int i2c_readbyte( unsigned int i2c_address, unsigned int dev_id, unsigned int dev_addr, char *data );
 int i2c_readbyte( unsigned int i2c_address, unsigned int dev_id, unsigned int dev_addr, char *data );
 int i2c_readdata( unsigned int i2c_address, unsigned int dev_id, unsigned int dev_addr, char *data, unsigned char len );
-unsigned char readRTCSecond();
-unsigned char testRTCSecond();
 
 #define rtc_write( memaddress, value ) i2c_writebyte( memaddress, RTC_ID, RTC_ADDR, value );
 

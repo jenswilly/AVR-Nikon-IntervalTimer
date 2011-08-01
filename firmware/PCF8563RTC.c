@@ -53,22 +53,6 @@ void readRTCClock( unsigned char *year, unsigned char *month, unsigned char *day
 //	}
 }
 
-unsigned char readRTCSecond()
-{
-	char second = 0;
-	i2c_readbyte( 2, RTC_ID, RTC_ADDR, &second );
-	
-	return bcdToDec( (second & 0x7F) );	// Strip bit7 (VL)
-}
-
-unsigned char testRTCSecond()
-{
-	char second[7] = "       ";
-	i2c_readdata( 2, RTC_ID, RTC_ADDR, second, 4 );
-	
-	return bcdToDec( (second[0] & 0x7F) );	// Strip bit7 (VL)
-}
-
 // Convert normal decimal numbers to binary coded decimal
 unsigned char decToBcd(unsigned char val)
 {

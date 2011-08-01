@@ -15,11 +15,13 @@
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
 DEVICE     = atmega328p
+#CLOCK      = 1500000
 CLOCK      = 12000000
 PROGRAMMER = -c avrispmkII -P usb
 OBJECTS    = main.o 5110LCD.o PCF8563RTC.o
 # FUSES      = -U lfuse:w:0xf7:m -U hfuse:w:0xdf:m -U efuse:w:0x00:m	# 168 
 FUSES	   = -U lfuse:w:0xf7:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m		# 328
+#FUSES	   = -U lfuse:w:0x77:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m		# 328 at 1.5 MHz (CLKDIV)
 
 
 # for ATmega168 PA: ext. full-swing xtal, slow start-up; BOD disabled; SPI enabled; boot reset enabled; 1k words boot sector
@@ -71,8 +73,7 @@ main.elf: $(OBJECTS)
 main.hex: main.elf
 	rm -f main.hex
 	avr-objcopy -j .text -j .data -O ihex main.elf main.hex
-	avr-size main.elf
-	avr-size main.hex
+	avr-size -C --mcu=$(DEVICE) main.elf
 # If you have an EEPROM section, you must also create a hex file for the
 # EEPROM and add it to the "flash" target.
 

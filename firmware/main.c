@@ -35,6 +35,7 @@
 /* Precompiler stuff for calculating USART baud rate value 
  * Otherwise, use this page: http://www.wormfood.net/avrbaudcalc.php?postbitrate=9600&postclock=12&bit_rate_table=on
  */
+//#define USART_BAUDRATE 2400	// error 0.2% for 1.5 MHz
 #define USART_BAUDRATE 9600	// error 0.2%
 #define BAUD_PRESCALE (((F_CPU / (USART_BAUDRATE * 16UL))) - 1) 
 
@@ -44,6 +45,7 @@
 /* 16-bit timer output compare value for timeout delay of approx. 5 seconds
  */
 #define TIMER_COMPARE_VALUE 0xe4e1	// ~5 secs: 12000000/1024/0.2 - 1 = 58593
+// #define TIMER_COMPARE_VALUE 1500000/1024/0.2 - 1 = 7323 for 1.5 MHz
 
 // Macros
 #define RESET_TIMEOUT TCNT1 = 0	// Reset timeout counter macro
@@ -90,7 +92,6 @@ ISR( TIMER1_COMPA_vect )
 // Interrupt handler for USART receive complete
 ISR( USART_RX_vect ) 
 { 
-	int i;
 	if( usartPtr >= 19 )
 		usartPtr = 0;
 	
@@ -123,48 +124,10 @@ ISR( USART_RX_vect )
 			usartPtr = 0;
 			return;
 		}
-		/*
-		if( usartBuffer[0] == 'c' )
-		{
-			if( usartBuffer[1] == 's' )
-				nextCommand = CMD_CLOCKSET;
-			else if( usartBuffer[1] == 'r' )
-				nextCommand = CMD_CLOCKREAD;
-			else
-				goto unknown_command;
-		}*/
-		/*
-		switch( usartBuffer[0] )
-		{
-			// Status
-			case 's':
-				nextCommand = CMD_STATUS;
-				break;
-				
-			case 'c':
-				// Clock commands
-				if( usartBuffer[1] == 's' )
-					nextCommand = CMD_CLOCKSET;
-				else if( usartBuffer[1] == 'r' )
-					nextCommand = CMD_CLOCKREAD;
-				break;
-				
-			// Unknown command
-			default:
-				serialWriteString( "UNK\r\n" );
-				break;
-		}
-		*/
+
 		// Reset buffer
-		usartPtr = 0;
-		 
+		usartPtr = 0; 
 	}
-	return;
-	
-unknown_command:
-	serialWriteString( "Unknown command\r\n" );
-	usartPtr = 0;
-	
 }
 
 // Interrupt handler for PCINT1
@@ -330,7 +293,6 @@ void setupTimeoutCounter()
 	TCCR1B = (1<< WGM12) | (1<< CS12) | (1<< CS10);	// CTC, top at OCR1A, prescaler 1024
 	OCR1A = TIMER_COMPARE_VALUE;		// Set timer compare value
 	TIMSK1 |= (1<< OCIE1A);				// Enable timer1 output compare match interrupt
-//	RESET_TIMEOUT;
 }
 
 
@@ -403,8 +365,18 @@ int main(void)
 		if( nextCommand == CMD_CLOCKSET )
 		{
 			nextCommand = CMD_NOP;
-			setRTCClock( 11, 07, 30, 6, 20, 35, 00 );
-			serialWriteString( "\r\nTime set to 2011-07-30 (Sat) 20:35:00\r\n" );
+			
+			// Parse format: zYYMMDDW-HHMMSS (W=weekday, Sunday=0)
+			year = ((usartBuffer[1] - '0') * 10) + (usartBuffer[2] - '0');
+			month = ((usartBuffer[3] - '0') * 10) + (usartBuffer[4] - '0');
+			day = ((usartBuffer[5] - '0') * 10) + (usartBuffer[6] - '0');
+			weekDay = (usartBuffer[7] - '0');
+			hour = ((usartBuffer[9] - '0') * 10) + (usartBuffer[10] - '0');
+			minute = ((usartBuffer[11] - '0') * 10) + (usartBuffer[12] - '0');
+			second = ((usartBuffer[13] - '0') * 10) + (usartBuffer[14] - '0');
+
+			setRTCClock( year, month, day, weekDay, hour, minute, second );
+			serialWriteString( "\r\nTime set\r\n" );
 		}
 		/*
 		if( nextCommand == CMD_CLOCKSET )
