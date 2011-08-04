@@ -11,6 +11,8 @@
 void initRTC();
 void setRTCClock( unsigned char year, unsigned char month, unsigned char day, unsigned char weekDay, unsigned char hour, unsigned char minute, unsigned char second);
 void readRTCClock( unsigned char *year, unsigned char *month, unsigned char *day, unsigned char *weekDay, unsigned char *hour, unsigned char *minute, unsigned char *second);
+void setRTCAlarm( unsigned char day, unsigned char hour, unsigned char minute );
+
 
 int i2c_writebyte(unsigned int i2c_address, unsigned int dev_id, unsigned int dev_addr, char data);
 int i2c_writedata( unsigned int i2c_address, unsigned int dev_id, unsigned int dev_addr, char *data, unsigned char len );

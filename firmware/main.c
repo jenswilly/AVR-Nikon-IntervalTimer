@@ -71,8 +71,9 @@ void serialWriteString( const char* string );
 #define	CMD_NOP 0
 #define	CMD_SLEEP 1
 #define	CMD_STATUS 2		// s
-#define	CMD_CLOCKSET 3		// csYYYYMMDDHHMMSS
+#define	CMD_CLOCKSET 3		// csYYMMDDWHHMMSS
 #define	CMD_CLOCKREAD 4		// cr
+#define CMD_ALARMSET 5		// aDDHHMM
 
 // Global vars
 unsigned char sleepAllowed;
@@ -124,9 +125,45 @@ ISR( USART_RX_vect )
 			usartPtr = 0;
 			return;
 		}
+		if( usartBuffer[0] == 'a' )
+		{
+			nextCommand = CMD_ALARMSET;
+			usartPtr = 0;
+			return;
+		}
 
 		// Reset buffer
 		usartPtr = 0; 
+	}
+}
+
+// Interrupt handler for PCINT2
+// This is used for PCINT22: external interrupt from RTC
+ISR(PCINT2_vect)
+{
+	_delay_ms( 20 ); // debounce
+	
+	// Since this interrupt will trigger on both high->low and low->high, we need to check if it was a high->low change
+	if( !(PIND & (1<<PD6)) )
+	{
+		// Yes: external alarm triggered
+		
+		// Wake up stuff if necessary
+		if( sleeping )
+		{
+			enable_spi();
+			enable_serial();
+			
+			LCD_init();
+			
+			sleeping = 0;
+		}
+		
+		// LED on
+		PORTB |= (1<<PB2);
+		LCD_drawImage( nuke );
+
+		RESET_TIMEOUT;
 	}
 }
 
@@ -159,7 +196,7 @@ ISR(PCINT1_vect)
 		
 		// Clear LCD and draw image
 		LCD_clear();
-		LCD_drawImage( nuke );
+		LCD_writeString_F( "USB connect" );
 		
 		// And clear USART buffer
 		usartPtr = 0;
@@ -175,7 +212,7 @@ ISR(PCINT1_vect)
 		LCD_writeString_F( "USB disconn." );
 		
 		// Wait a sec
-		_delay_ms( 1000 );
+		_delay_ms( 2000 );
 		
 		// Switch off LED
 		PORTB &= ~(1<<PB2);
@@ -196,8 +233,9 @@ void setup_ports()
 	DDRB |= (1<<PB2);								// 5110_LED output
 	PORTB &= ~(1<<PB2);								// LED off
 	
-	// USB connected interrupt
-	PORTC |= _BV(PC3);		// pull-up PC3/PCINT11
+	// External interrupts -> input (set by default)
+	PORTC |= (1<< PC3);		// pull-up PC3/PCINT11: interrupt on USB PWREN#
+	PORTD |= (1<< PD6);		// pull-up PD6/PCINT22: interrupt on alarm from RTC
 	
 	// Set pull-ups on I2C pins
 	PORTC |= _BV( PC4 ) | _BV( PC5 );
@@ -206,8 +244,9 @@ void setup_ports()
 void setup_interrupts()
 {
 	// Enable pin-change interrupt on USB PWREN# (PC3/PCINT11)
-	PCICR |= _BV(PCIE1);	//Enable PCINT1
-	PCMSK1 |= _BV(PCINT11);	//Trigger on change of PCINT11 (PC3)
+	PCICR |= (1<< PCIE1) | (1<< PCIE2);		// Enable PCINT1 and PCINT2
+	PCMSK1 = (1<< PCINT11);					// Trigger on change of PCINT11 (PC3/pin26)
+	PCMSK2 = (1<< PCINT22);					// Trigger on change of PCINT22 (PD6/pin12)
 	
 	// Enable USART RX interrupt
 	UCSR0B |= (1<< RXCIE0);	// Enable USART RX interrupt
@@ -268,8 +307,9 @@ void serialWriteString( const char* string )
 // Call this method to go to sleep
 void sleep()
 {
-//	return;
-
+	// Power off LED
+	PORTB &= ~(1<<PB2);
+	
 	// Set "sleep" display
 	LCD_clear();
 	LCD_writeString_F( "     --     " );
@@ -377,6 +417,18 @@ int main(void)
 
 			setRTCClock( year, month, day, weekDay, hour, minute, second );
 			serialWriteString( "\r\nTime set\r\n" );
+		}
+		if( nextCommand == CMD_ALARMSET )
+		{
+			nextCommand = CMD_NOP;
+			
+			// Parse format: aDDHHMM
+			day = ((usartBuffer[1] - '0') * 10) + (usartBuffer[2] - '0');
+			hour = ((usartBuffer[3] - '0') * 10) + (usartBuffer[4] - '0');
+			minute = ((usartBuffer[5] - '0') * 10) + (usartBuffer[6] - '0');
+			
+			setRTCAlarm( day, hour, minute );
+			serialWriteString( "\r\nAlarm set\r\n" );
 		}
 		/*
 		if( nextCommand == CMD_CLOCKSET )

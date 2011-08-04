@@ -28,6 +28,15 @@ void initRTC()
 	rtc_write( 1, 0 );	// no interrupts
 }
 
+void setRTCAlarm( unsigned char day, unsigned char hour, unsigned char minute )
+{
+	char data[4] = { decToBcd(minute), decToBcd(hour), decToBcd(day), 0x10 };	// NOTE: AE set in all registers
+	i2c_writedata( 9, RTC_ID, RTC_ADDR, data, 3 );
+	
+	// Enable alarm
+	i2c_writebyte( 1, RTC_ID, RTC_ADDR, 0x02 );
+}
+
 void setRTCClock( unsigned char year, unsigned char month, unsigned char day, unsigned char weekDay, unsigned char hour, unsigned char minute, unsigned char second)
 {
 	char data[7] = { decToBcd( second ), decToBcd( minute ), decToBcd( hour ), decToBcd( day ), decToBcd( weekDay ), decToBcd( month ), decToBcd( year )};
