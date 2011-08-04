@@ -77,7 +77,6 @@ void serialWriteString( const char* string );
 
 // Global vars
 unsigned char sleepAllowed;
-volatile unsigned char sleeping;
 unsigned char usartBuffer[20];				// USART receive buffer
 volatile unsigned char usartPtr;			// USART buffer pointer
 volatile unsigned char nextCommand;			// Next command mode
@@ -148,17 +147,6 @@ ISR(PCINT2_vect)
 	{
 		// Yes: external alarm triggered
 		
-		// Wake up stuff if necessary
-		if( sleeping )
-		{
-			enable_spi();
-			enable_serial();
-			
-			LCD_init();
-			
-			sleeping = 0;
-		}
-		
 		// LED on
 		PORTB |= (1<<PB2);
 		LCD_drawImage( nuke );
@@ -171,17 +159,6 @@ ISR(PCINT2_vect)
 // This is used for PCINT12: PWREN# from USB connect/disconnect
 ISR(PCINT1_vect)
 {
-	// Re-enable SPI if we were sleeping
-	if( sleeping )
-	{
-		enable_spi();
-		enable_serial();
-		
-		LCD_init();
-
-		sleeping = 0;
-	}
-	
 	// Debounce
 	_delay_ms( 20 );
 	
@@ -320,7 +297,6 @@ void sleep()
 	PRR = 0xEF;						// turn everything off (actually, we don't need to switch everything off since power-down will turn off lots of stuff by itself)
 #endif
 	
-	sleeping = 1;
 	asm("sleep");					// nighty, night.
 }
 
@@ -339,7 +315,6 @@ void setupTimeoutCounter()
 
 int main(void)
 {
-	sleeping = 0;
 	usartPtr = 0;
 	nextCommand = CMD_NOP;
 	
