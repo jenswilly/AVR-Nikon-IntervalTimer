@@ -71,13 +71,14 @@ void serialWriteString( const char* string );
 #define	CMD_NOP 0
 #define	CMD_SLEEP 1
 #define	CMD_STATUS 2		// s
-#define	CMD_CLOCKSET 3		// csYYMMDDWHHMMSS
-#define	CMD_CLOCKREAD 4		// cr
+#define	CMD_CLOCKSET 3		// zYYMMDDW-HHMMSS
+#define	CMD_CLOCKREAD 4		// q
 #define CMD_ALARMSET 5		// aDDHHMM
 
 // Global vars
+#define RX_BUF_SIZE	20
 unsigned char sleepAllowed;
-unsigned char usartBuffer[20];				// USART receive buffer
+unsigned char usartBuffer[RX_BUF_SIZE];				// USART receive buffer
 volatile unsigned char usartPtr;			// USART buffer pointer
 volatile unsigned char nextCommand;			// Next command mode
 
@@ -92,7 +93,8 @@ ISR( TIMER1_COMPA_vect )
 // Interrupt handler for USART receive complete
 ISR( USART_RX_vect ) 
 { 
-	if( usartPtr >= 19 )
+	// Prevent buffer overflow
+	if( usartPtr >= RX_BUF_SIZE-1 )
 		usartPtr = 0;
 	
 	// (We needn't worry about sleeping here, since we're in an interrupt handler)
