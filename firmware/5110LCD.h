@@ -39,20 +39,20 @@ void LCD_writeChar ( unsigned char character );
 void LCD_writeChar_megaFont ( unsigned char character );
 void LCD_writeData ( unsigned char data );
 void LCD_writeCommand ( unsigned char command );
-void LCD_writeString_megaFont ( char *string );
+//void LCD_writeString_megaFont ( char *string );
 void LCD_writeString_F ( const char *string);
-void LCD_setPixel ( unsigned char x, unsigned char y);
-void LCD_clearPixel ( unsigned char x, unsigned char y);
-void LCD_setPixelNoUpdate ( unsigned char x, unsigned char y);
-void LCD_clearPixelNoUpdate ( unsigned char x, unsigned char y);
-void LCD_drawLine ( unsigned char x1, unsigned char y1, unsigned char x2, unsigned char y2 );
-void LCD_drawBorder (void );
+//void LCD_setPixel ( unsigned char x, unsigned char y);
+//void LCD_clearPixel ( unsigned char x, unsigned char y);
+//void LCD_setPixelNoUpdate ( unsigned char x, unsigned char y);
+//void LCD_clearPixelNoUpdate ( unsigned char x, unsigned char y);
+//void LCD_drawLine ( unsigned char x1, unsigned char y1, unsigned char x2, unsigned char y2 );
+//void LCD_drawBorder (void );
 
 void LCD_drawImage( const unsigned char data[] );
 
 //void LCD_drawSplash (void );
 //void LCD_drawSplashNoUpdate (void );
-void delay_ms ( int millisec );
+//void delay_ms ( int millisec );
 void spi_init(void);
 
 #endif  //  _3310_ROUTINES_H_

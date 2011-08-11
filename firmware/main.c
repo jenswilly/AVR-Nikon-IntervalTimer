@@ -27,10 +27,9 @@
  *	+ PWR, GND and 3V3 -> VLED
  */
 
-
-// Define to 1 to use PRR power reduction before sleep; 0 to not power-down stuff
-#define POWERREDU 0
-
+/* Sleep timer value in seconds
+ */
+#define SLEEP_TIMER 20
 
 /* Precompiler stuff for calculating USART baud rate value 
  * Otherwise, use this page: http://www.wormfood.net/avrbaudcalc.php?postbitrate=9600&postclock=12&bit_rate_table=on
@@ -39,16 +38,23 @@
 #define USART_BAUDRATE 9600	// error 0.2%
 #define BAUD_PRESCALE (((F_CPU / (USART_BAUDRATE * 16UL))) - 1) 
 
+/* I2C clockrate
+ */
 #define TWI_CLKRATE 100000	// 100 kHz
 #define TWI_BITRATE ((F_CPU/TWI_CLKRATE)-16)/2
 
-/* 16-bit timer output compare value for timeout delay of approx. 5 seconds
+/* Keypad polling frequency in Hz
  */
-#define TIMER_COMPARE_VALUE 0xe4e1	// ~5 secs: 12000000/1024/0.2 - 1 = 58593
-// #define TIMER_COMPARE_VALUE 1500000/1024/0.2 - 1 = 7323 for 1.5 MHz
+#define KEYPAD_POLL_FREQ 128
+#define KEYPAD_POLL_TIMER_COMPARE_VALUE ((F_CPU/1024/KEYPAD_POLL_FREQ)-1)
+//#define KEYPAD_POLL_TIMER_COMPARE_VALUE 91
+
+/* 16-bit timer output compare value for timeout delay of approx. 1 seconds
+ */
+#define TIMER_COMPARE_VALUE 11718	// ~5 secs: 12000000/1024/1 - 1 = 11717.75
 
 // Macros
-#define RESET_TIMEOUT TCNT1 = 0	// Reset timeout counter macro
+#define RESET_TIMEOUT TCNT1 = 0; sleepTimer=0	// Reset timeout counter macro
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -78,16 +84,38 @@ void serialWriteString( const char* string );
 // Global vars
 #define RX_BUF_SIZE	20
 unsigned char sleepAllowed;
-unsigned char usartBuffer[RX_BUF_SIZE];				// USART receive buffer
+unsigned char usartBuffer[RX_BUF_SIZE];		// USART receive buffer
 volatile unsigned char usartPtr;			// USART buffer pointer
 volatile unsigned char nextCommand;			// Next command mode
+volatile int sleepTimer;					// Seconds timer for sleep timeout
+volatile unsigned char keypad_mask;			// Bitmask for selecting MUX channel
 
 // Timer1 compare match interrupt used for timeout to sleep
 ISR( TIMER1_COMPA_vect )
 {
+	// 1 second passed: increase counter
+	sleepTimer++;
+	
 	// Timeout reached: go to sleep if we're allowed to do so
-	if( sleepAllowed )
-		nextCommand = CMD_SLEEP;
+	if( sleepTimer >= SLEEP_TIMER )
+	{
+		if( sleepAllowed )
+			nextCommand = CMD_SLEEP;
+		else
+			sleepTimer = 0;
+	}
+}
+
+// Timer0 compare match interrupt used for keypad polling
+ISR( TIMER0_COMPA_vect )
+{
+	// Increase keypad bitmask for selecting MUX channels 0-4
+	keypad_mask++;
+	if( keypad_mask > 4 )
+		keypad_mask = 0;
+	
+	PORTC &= 0b11111000;	// clear PC0 - PC2
+	PORTC |= keypad_mask;	// set current keypad_mask
 }
 
 // Interrupt handler for USART receive complete
@@ -149,6 +177,9 @@ ISR(PCINT2_vect)
 	{
 		// Yes: external alarm triggered
 		
+		// Wake-up?
+		// TODO
+
 		// LED on
 		PORTB |= (1<<PB2);
 		LCD_drawImage( nuke );
@@ -167,6 +198,12 @@ ISR(PCINT1_vect)
 	// Is PWREN# low?
 	if( !(PINC & (1<<PC3)) )
 	{
+		// Disable keypad polling
+		// ...
+		
+		// Disable keypad press interrupt
+		// ...
+		
 		// Yes: USB connected
 		sleepAllowed = 0;
 		
@@ -182,6 +219,12 @@ ISR(PCINT1_vect)
 	}
 	else
 	{
+		// Enable keypad polling
+		// ...
+		
+		// Enable keypad press interrupt
+		// ...
+		
 		// No: USB disconnected
 		sleepAllowed = 1;
 		RESET_TIMEOUT;
@@ -201,6 +244,56 @@ ISR(PCINT1_vect)
 	}
 }
 
+// Interrupt handler for pin-change on currently connected input pin from keypad
+ISR( PCINT0_vect )
+{
+	// Key down or up?
+	if( !(PINB & (1<< PB1)) )
+	{
+		// Key down
+		// Stop keypad poll timer
+		TCCR0B = 0;
+		
+		// Make sure LED is on
+		PORTB |= (1<<PB2);
+		
+		// Which button was pressed?
+		switch( keypad_mask )
+		{
+			case 0x00:
+				// Center button
+				LCD_writeChar( 'X' );
+				break;
+				
+			case 0x01:
+				// Up
+				LCD_writeChar( 'U' );
+				break;
+				
+			case 0x02:
+				// Down
+				LCD_writeChar( 'D' );
+				break;
+				
+			case 0x03:
+				// Left
+				LCD_writeChar( 'L' );
+				break;
+				
+			case 0x04:
+				// Right
+				LCD_writeChar( 'R' );
+				break;
+		}
+	}
+	else
+	{
+		// Key up
+		// Restart keypad poll timer
+		TCCR0B = (1<< CS02) | (1<< CS00);	// Start clock with prescaler 1024
+	}
+}
+
 void setup_ports()
 {
 	// Initialize ports for SPI
@@ -211,6 +304,12 @@ void setup_ports()
 	DDRD |= _BV( PD2 ) | _BV( PD3 ) | _BV( PD7 );	// SCE, RESET and D/C -> output
 	DDRB |= (1<<PB2);								// 5110_LED output
 	PORTB &= ~(1<<PB2);								// LED off
+	
+	// Pull-up on keypad input pin
+	PORTB |= (1<< PB1);
+	
+	// Keypad MUX select pins -> output
+	DDRC |= (1<< PC0) | (1<<PC1) | (1<<PC2);	
 	
 	// External interrupts -> input (set by default)
 	PORTC |= (1<< PC3);		// pull-up PC3/PCINT11: interrupt on USB PWREN#
@@ -223,9 +322,10 @@ void setup_ports()
 void setup_interrupts()
 {
 	// Enable pin-change interrupt on USB PWREN# (PC3/PCINT11)
-	PCICR |= (1<< PCIE1) | (1<< PCIE2);		// Enable PCINT1 and PCINT2
-	PCMSK1 = (1<< PCINT11);					// Trigger on change of PCINT11 (PC3/pin26)
-	PCMSK2 = (1<< PCINT22);					// Trigger on change of PCINT22 (PD6/pin12)
+	PCICR |= (1<< PCIE0) | (1<< PCIE1) | (1<< PCIE2);	// Enable PCINT1 and PCINT2
+	PCMSK0 = (1<< PCINT1);								// Trigger on change of PCINT1 (PB1/pin15)	- NOTE: not enabled yet
+	PCMSK1 = (1<< PCINT11);								// Trigger on change of PCINT11 (PC3/pin26)
+	PCMSK2 = (1<< PCINT22);								// Trigger on change of PCINT22 (PD6/pin12)
 	
 	// Enable USART RX interrupt
 	UCSR0B |= (1<< RXCIE0);	// Enable USART RX interrupt
@@ -235,9 +335,6 @@ void setup_interrupts()
 // Remember to call this method after waking up
 void enable_serial()
 {
-#if POWERREDU
-	PRR &= ~(1<< PRUSART0);		// Power to the USART
-#endif
 	UCSR0B |= (1<< RXEN0) | (1<< TXEN0);			// Enable TX and RX
 //	UCSR0C |= (1 << UCSZ00) | (1 << UCSZ01);		// 8N1 serial format. Set by default
 	UBRR0H = (BAUD_PRESCALE >> 8) & 0x0F;			// High part of baud rate masked so bits 15:12 are writted as 0 as per the datasheet (19.10.5)
@@ -249,18 +346,12 @@ void enable_serial()
 void enable_spi()
 {
 	// Init SPI
-#if POWERREDU
-	PRR &= ~(1<< PRSPI);	// Power to the SPI module
-#endif
 	SPCR = 0x52;			// SPI enable, master, sample on leading edge, rising, rate=Fosc/64
 	SPSR = 0;				// not 2x data rate
 }
 
 void enable_i2c()
 {
-#if POWERREDU
-	PRR &= ~(1<< PRTWI);
-#endif
 	// Set prescaler and bit rate for 100 kHz
 	// SCL frequency = 12000000 / (16 + 2 * <52> * <1>) = 100 khz
 	TWSR = 0x00;			// Select Prescaler of 1
@@ -294,23 +385,29 @@ void sleep()
 	LCD_writeString_F( "     --     " );
 	_delay_ms( 200 );
 	
+	
+	// Select MUX to Y0 for center key
+	keypad_mask = 0;
+	PORTC &= 0b11111000;
+	
 	SMCR |= (1<< SM1) | (1<< SE);	// sleep-mode=power-down, enable sleep
-#if POWERREDU
-	PRR = 0xEF;						// turn everything off (actually, we don't need to switch everything off since power-down will turn off lots of stuff by itself)
-#endif
 	
 	asm("sleep");					// nighty, night.
 }
 
 void setupTimeoutCounter()
 {
-#if POWERREDU
-	PRR &= ~(1<< PRTIM1);		// Power-up timer1
-#endif
 	TCCR1A = 0;							// Normal mode, output compare pins disabled	
 	TCCR1B = (1<< WGM12) | (1<< CS12) | (1<< CS10);	// CTC, top at OCR1A, prescaler 1024
 	OCR1A = TIMER_COMPARE_VALUE;		// Set timer compare value
 	TIMSK1 |= (1<< OCIE1A);				// Enable timer1 output compare match interrupt
+	
+	// Timer0 (8bit) for keypad polling
+	TCCR0A = (1<< WGM01);				// Mode 2: CTC
+	TCCR0B = (1<< CS02) | (1<< CS00);	// Start clock with prescaler 1024
+	OCR0A = KEYPAD_POLL_TIMER_COMPARE_VALUE;
+	TIMSK0 |= (1<< OCIE0A);				// Enable timer0 output compare match interrupt
+	
 }
 
 
@@ -345,7 +442,7 @@ int main(void)
 	sei();
 
 	// OK to go to sleep
-	sleepAllowed = 0;
+	sleepAllowed = 1;
 	
 	// Main loop
 	for( ;; )
@@ -407,25 +504,8 @@ int main(void)
 			setRTCAlarm( day, hour, minute );
 			serialWriteString( "\r\nAlarm set\r\n" );
 		}
-		/*
-		if( nextCommand == CMD_CLOCKSET )
-		{
-			nextCommand = CMD_NOP;
-			// set clock to 2011-07-30 Saturday 20:35:00
-			//setRTCClock( 11, 07, 30, 6, 20, 35, 00 );
-			serialWriteString( "\r\nTime set to 2011-07-30 (Sat) 20:35:00\r\n" );
-		}
-		 */
-		/*
-		else if( nextCommand == CMD_CLOCKREAD )
-		{
-			nextCommand = CMD_NOP;
-			// read clock and output on serial
-			//readRTCClock( &year, &month, &day, &weekDay, &hour, &minute, &second );
-			serialWriteString( "Clock read\r\n" );
-		}
-		 */
-		 _delay_ms( 100 );
+
+		_delay_ms( 100 );
 	}
 
     return 0;

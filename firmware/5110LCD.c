@@ -322,41 +322,6 @@ void LCD_init ( void )
 	LCD_clear();
 }
 
-// SPI method
-void lcd_write(uint8_t dc, uint8_t data)
-{
-	// Set D/C
-	if (dc)
-		LCD_DC_HI;
-	else
-		LCD_DC_LO;
-	LCD_SCE_LO;
-	
-	SPDR = data;
-	while( !(SPSR & (1<<SPIF) ))
-		continue;
-	
-	/*
-	 // WORKS
-
-	 int i;
-	 
-	for (i = 0; i < 8; i++)
-	{
-		if (data&(1<<7))
-			LCD_DN_HI;
-		else
-			LCD_DN_LO;
-		LCD_SCLK_LO;
-		LCD_SCLK_HI;
-		data <<= 1;
-	}
-	 */
-	
-	LCD_SCE_HI;
-	LCD_DN_LO;
-}
-
 /*--------------------------------------------------------------------------------------------------
   Name         :  LCD_writeCommand
   Description  :  Sends command to display controller.
@@ -502,7 +467,7 @@ void LCD_drawImage( const unsigned char data[] )
 	for( i=0; i<504; i++ )
 		LCD_writeData( pgm_read_byte( &data[i] ));
 }
-
+/*
 void LCD_setPixelNoUpdate( unsigned char x, unsigned char y )
 {
 	unsigned char value;
@@ -558,7 +523,7 @@ void LCD_clearPixelNoUpdate( unsigned char x, unsigned char y )
 	value &= ~(1 << (y % 8));
 	lcd_buffer[row][x] = value;
 }
-
+*/
 /*--------------------------------------------------------------------------------------------------
   Name         :  LCD_gotoXY
   Description  :  Sets cursor location to xy location corresponding to basic font size.
@@ -640,6 +605,7 @@ void LCD_writeChar_megaFont (unsigned char ch)
   Argument(s)  :  string -> Pointer to ASCII string (stored in RAM)
   Return value :  None.
 --------------------------------------------------------------------------------------------------*/
+
 void LCD_writeString_megaFont ( char *string )
 {
 	char_start = 0;
@@ -672,10 +638,10 @@ void LCD_writeString_F ( const char *string )
   Argument(s)  :  None.
   Return value :  None.
 --------------------------------------------------------------------------------------------------*/
+/*
 void delay_ms(int miliSec)  //for 1Mhz clock
 {
 	_delay_ms( miliSec );
-	/*
 	int i,j;
   
 	for(i=0;i<miliSec;i++)
@@ -684,8 +650,8 @@ void delay_ms(int miliSec)  //for 1Mhz clock
 			asm("nop");
 			asm("nop");
 		}
-	 */
 }
+*/
 
 /*--------------------------------------------------------------------------------------------------
   Name         :  LCD_drawBorder
@@ -693,6 +659,7 @@ void delay_ms(int miliSec)  //for 1Mhz clock
   Argument(s)  :  None
   Return value :  None
 --------------------------------------------------------------------------------------------------*/
+/*
 void LCD_drawBorder (void )
 {
 	unsigned char i, j;  
@@ -720,7 +687,7 @@ void LCD_drawBorder (void )
 
 	LCD_update();
 }	
-
+*/
 /*--------------------------------------------------------------------------------------------------
                                          End of file.
 --------------------------------------------------------------------------------------------------*/
