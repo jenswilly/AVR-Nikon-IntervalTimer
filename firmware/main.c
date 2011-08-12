@@ -1,12 +1,3 @@
-/*	NEXT STEPS:
- *
- *	1)	UART comm -> FTDI
- *		keep writing test string, then delay
- *
- *	√	Sleep
- *		Go to sleep/idle/power-down after USB disconnect
- */
-
 /*
  *  main.c
  *  5110_test
@@ -14,18 +5,8 @@
  *  Created by Jens Willy Johannsen on 25-07-11.
  *  Copyright Greener Pastures 2011. All rights reserved.
  *
- *
- *	Hardware connections:
- *	PD2/pin4/dig2	-> 5110 SCE (SS)
- *	PD3/pin5/dig3	-> 5110 D/C
- *	PD7/pin13/dig7	-> 5110 RESET
- *	PB5/pin19/dig13	-> 5110 SCLK
- *	PB4/pin18/dig12	-> MISO
- *	PB3/pin17/dig11	-> 5110 SDIN
- *	PB2/pin16		-> 5110 LED (direct)
- *	PB1/pin15		-> FTDI PWREN#
- *	+ PWR, GND and 3V3 -> VLED
  */
+
 
 /* Sleep timer value in seconds
  */
@@ -63,6 +44,7 @@
 #include "5110LCD.h"
 #include"PCF8563RTC.h"
 #include "images.h"
+#include "nRF24L01p.h"
 
 // Prototypes
 void enable_spi();
@@ -89,6 +71,8 @@ volatile unsigned char usartPtr;			// USART buffer pointer
 volatile unsigned char nextCommand;			// Next command mode
 volatile int sleepTimer;					// Seconds timer for sleep timeout
 volatile unsigned char keypad_mask;			// Bitmask for selecting MUX channel
+volatile unsigned char rdoBuffer[4];		// Buffer for nRF radio
+static char hex_chars[] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 
 // Timer1 compare match interrupt used for timeout to sleep
 ISR( TIMER1_COMPA_vect )
@@ -247,13 +231,58 @@ ISR(PCINT1_vect)
 // Interrupt handler for pin-change on currently connected input pin from keypad
 ISR( PCINT0_vect )
 {
+	// nRF IRQ?
+	if( !(PINB & (1<< PB0)) )
+	{
+		// Yes: do we have data ready (we should but...)
+		if( nRF24L01p_dataReady() )
+		{
+			nRF24L01p_readData( (uint8_t*)rdoBuffer );
+			LCD_clear();
+			LCD_writeChar( hex_chars[ rdoBuffer[0] >> 4 ] );
+			LCD_writeChar( hex_chars[ rdoBuffer[0] & 0x0F ] );
+			LCD_writeChar( '-' );
+			LCD_writeChar( hex_chars[ rdoBuffer[1] >> 4 ] );
+			LCD_writeChar( hex_chars[ rdoBuffer[1] & 0x0F ] );
+			LCD_writeChar( '-' );
+			LCD_writeChar( hex_chars[ rdoBuffer[2] >> 4 ] );
+			LCD_writeChar( hex_chars[ rdoBuffer[2] & 0x0F ] );
+			LCD_writeChar( '-' );
+			LCD_writeChar( hex_chars[ rdoBuffer[3] >> 4 ] );
+			LCD_writeChar( hex_chars[ rdoBuffer[3] & 0x0F ] );
+			LCD_writeChar( '-' );
+		}
+		else
+		{
+			LCD_clear();
+			LCD_writeString_F( "No RF data." );
+		}
+		
+		// Reset sleep timer and exit
+		RESET_TIMEOUT;
+		return;
+	}
+		  
 	// Key down or up?
 	if( !(PINB & (1<< PB1)) )
 	{
 		// Key down
-		// Stop keypad poll timer
+		// Stop keypad poll timer and reset any pending timer interrupt
 		TCCR0B = 0;
+		TIFR0 |= OCF0A;
 		
+		// Debounce
+		cli();
+		_delay_ms( 10 );
+		sei();
+		
+		if( (PINB & (1<< PB1)) )
+		{
+			// Debounce failed: restart keypad poll timer and exit
+			TCCR0B = (1<< CS02) | (1<< CS00);	// Start clock with prescaler 1024
+			return;
+		}
+			
 		// Make sure LED is on
 		PORTB |= (1<<PB2);
 		
@@ -262,31 +291,34 @@ ISR( PCINT0_vect )
 		{
 			case 0x00:
 				// Center button
-				LCD_writeChar( 'X' );
+				LCD_writeChar( '@' );
 				break;
 				
 			case 0x01:
 				// Up
-				LCD_writeChar( 'U' );
+				LCD_writeChar( '=' );
 				break;
 				
 			case 0x02:
 				// Down
-				LCD_writeChar( 'D' );
+				LCD_writeChar( '>' );
 				break;
 				
 			case 0x03:
 				// Left
-				LCD_writeChar( 'L' );
+				LCD_writeChar( '<' );
 				break;
 				
 			case 0x04:
 				// Right
-				LCD_writeChar( 'R' );
+				LCD_writeChar( ';' );
 				break;
 		}
+		
+		// Reset sleep timer
+		RESET_TIMEOUT;
 	}
-	else
+	else if( (PINB & (1<< PB1)) )
 	{
 		// Key up
 		// Restart keypad poll timer
@@ -305,15 +337,14 @@ void setup_ports()
 	DDRB |= (1<<PB2);								// 5110_LED output
 	PORTB &= ~(1<<PB2);								// LED off
 	
-	// Pull-up on keypad input pin
-	PORTB |= (1<< PB1);
-	
 	// Keypad MUX select pins -> output
 	DDRC |= (1<< PC0) | (1<<PC1) | (1<<PC2);	
 	
 	// External interrupts -> input (set by default)
 	PORTC |= (1<< PC3);		// pull-up PC3/PCINT11: interrupt on USB PWREN#
 	PORTD |= (1<< PD6);		// pull-up PD6/PCINT22: interrupt on alarm from RTC
+	PORTB |= (1<< PB0);		// pull-up PB0/PCINT0: nRF24L01+ IRQ input pin
+	PORTB |= (1<< PB1);		// pull-up PB1/PCINT1: keypad input pin
 	
 	// Set pull-ups on I2C pins
 	PORTC |= _BV( PC4 ) | _BV( PC5 );
@@ -322,8 +353,8 @@ void setup_ports()
 void setup_interrupts()
 {
 	// Enable pin-change interrupt on USB PWREN# (PC3/PCINT11)
-	PCICR |= (1<< PCIE0) | (1<< PCIE1) | (1<< PCIE2);	// Enable PCINT1 and PCINT2
-	PCMSK0 = (1<< PCINT1);								// Trigger on change of PCINT1 (PB1/pin15)	- NOTE: not enabled yet
+	PCICR |= (1<< PCIE0) | (1<< PCIE1) | (1<< PCIE2);	// Enable PCINT0, PCINT1 and PCINT2
+	PCMSK0 = (1<< PCINT0) | (1<< PCINT1);				// Trigger on change of PCINT0 (PB0/pin14) and PCINT1 (PB1/pin15)
 	PCMSK1 = (1<< PCINT11);								// Trigger on change of PCINT11 (PC3/pin26)
 	PCMSK2 = (1<< PCINT22);								// Trigger on change of PCINT22 (PD6/pin12)
 	
@@ -441,6 +472,10 @@ int main(void)
 	setup_interrupts();
 	sei();
 
+	// Setup radio
+	nRF24L01p_init();
+	nRF24L01p_startRX();
+	
 	// OK to go to sleep
 	sleepAllowed = 1;
 	
