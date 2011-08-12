@@ -18,6 +18,7 @@
 *.perspectivev3
 *.pbxuser
 xcuserdata
+*/xcuserdata/
 *.xcbkptlist
 xcschememanagement.plist
 	
