@@ -234,7 +234,10 @@ ISR( PCINT0_vect )
 	// nRF IRQ?
 	if( !(PINB & (1<< PB0)) )
 	{
-		// Yes: do we have data ready (we should but...)
+		// Yes: disable interrupts until we're done with this
+		cli();
+		
+		// Do we have data ready (we should but...)
 		if( nRF24L01p_dataReady() )
 		{
 			nRF24L01p_readData( (uint8_t*)rdoBuffer );
@@ -255,14 +258,17 @@ ISR( PCINT0_vect )
 		else
 		{
 			LCD_clear();
-			LCD_writeString_F( "No RF data." );
+			LCD_writeString_F( "No RF data?" );
 		}
+		
+		// Re-enable interrupts
+		sei();
 		
 		// Reset sleep timer and exit
 		RESET_TIMEOUT;
 		return;
 	}
-		  
+	
 	// Key down or up?
 	if( !(PINB & (1<< PB1)) )
 	{
@@ -336,6 +342,9 @@ void setup_ports()
 	DDRD |= _BV( PD2 ) | _BV( PD3 ) | _BV( PD7 );	// SCE, RESET and D/C -> output
 	DDRB |= (1<<PB2);								// 5110_LED output
 	PORTB &= ~(1<<PB2);								// LED off
+	
+	// nRF24L01p ports
+	DDRD |= (1<< PD4) | (1<< PD5);					// CSN and CE -> output. IRQ is already input
 	
 	// Keypad MUX select pins -> output
 	DDRC |= (1<< PC0) | (1<<PC1) | (1<<PC2);	

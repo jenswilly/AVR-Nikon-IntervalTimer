@@ -42,16 +42,16 @@ void nRF24L01p_powerDown();
 #define PIN_SCK		PB5		// pin19, DIG13
 #define PIN_MISO	PB4		// pin18, DIG12
 #define PIN_MOSI	PB3		// pin17, DIG11
-#define PIN_SS		PB2		// pin16, DIG10	-- NOT USED
-#define	PIN_CE		PB1		// pin15, DIG9
-#define PIN_CSN		PB0		// pin14, DIG8	
+//#define PIN_SS		PB2		// pin16, DIG10	-- NOT USED
+#define	PIN_CE		PD5		// pin11
+#define PIN_CSN		PD4		// pin6
 
 // macros for CE and CSN HIGH/LOW
 // NOTE: requires the CE and CSN are on PORT B pins
-#define CE_LOW		PORTB &= ~_BV( PIN_CE )
-#define CE_HIGH		PORTB |= _BV( PIN_CE )
-#define CSN_LOW		PORTB &= ~_BV( PIN_CSN )
-#define CSN_HIGH	PORTB |= _BV( PIN_CSN )
+#define CE_LOW		PORTD &= ~_BV( PIN_CE )
+#define CE_HIGH		PORTD |= _BV( PIN_CE )
+#define CSN_LOW		PORTD &= ~_BV( PIN_CSN )
+#define CSN_HIGH	PORTD |= _BV( PIN_CSN )
 
 /* Memory Map */
 #define CONFIG      0x00
