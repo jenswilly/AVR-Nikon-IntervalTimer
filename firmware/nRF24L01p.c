@@ -100,11 +100,16 @@ void nRF24L01p_startRX()
 {
 	nRF24L01p_isPTX = 0;	// no: in RX mode
 	
+	// Clear RX buffer
+	nRF24L01p_flushRX();
+	
+	// Clear RX_DR flag
+	nRF24L01p_write_configByte( STATUS, 0x70 );	// Clear RX_DR, TX_DS and MAX_RT
+	
+	// Power up receiver
 	CE_LOW;
 	nRF24L01p_write_configByte( CONFIG, 0x3B );	// IRQ on RX_DR only, 1 bit CRC enabled, PRIM_RX, power up
 	CE_HIGH;
-
-	//	nRF24L01p_write_configByte( STATUS, _BV( TX_DS ) | _BV( MAX_RT )); // clear TX_DS and MAX_RT flags from status
 }
 
 /* power up in TX mode */
@@ -214,7 +219,8 @@ void nRF24L01p_readData( uint8_t* data )
 
 void nRF24L01p_powerDown()
 {
-	nRF24L01p_write_configByte( STATUS, 0x70 );		// Power down
+	CE_LOW;
+	nRF24L01p_write_configByte( CONFIG, 0x70 );		// Power down
 }
 
 void nRF24L01p_init()

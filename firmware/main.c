@@ -62,6 +62,8 @@ void serialWriteString( const char* string );
 #define	CMD_CLOCKSET 3		// zYYMMDDW-HHMMSS
 #define	CMD_CLOCKREAD 4		// q
 #define CMD_ALARMSET 5		// aDDHHMM
+#define CMD_RDO_OFF 6		// r0
+#define CMD_RDO_ON	7		// r1
 
 // Global vars
 #define RX_BUF_SIZE	20
@@ -123,26 +125,25 @@ ISR( USART_RX_vect )
 		if( usartBuffer[0] == 's' )
 		{
 			nextCommand = CMD_STATUS;
-			usartPtr = 0;
-			return;
 		}
-		if( usartBuffer[0] == 'q' )
+		else if( usartBuffer[0] == 'q' )
 		{
 			nextCommand = CMD_CLOCKREAD;
-			usartPtr = 0;
-			return;
 		}
-		if( usartBuffer[0] == 'z' )
+		else if( usartBuffer[0] == 'z' )
 		{
 			nextCommand = CMD_CLOCKSET;
-			usartPtr = 0;
-			return;
 		}
-		if( usartBuffer[0] == 'a' )
+		else if( usartBuffer[0] == 'a' )
 		{
 			nextCommand = CMD_ALARMSET;
-			usartPtr = 0;
-			return;
+		}
+		else if( usartBuffer[0] == 'r' )
+		{
+			if( usartBuffer[1] == '0' )
+				nextCommand = CMD_RDO_OFF;
+			else if( usartBuffer[1] == '1' )
+				nextCommand = CMD_RDO_ON;
 		}
 
 		// Reset buffer
@@ -253,7 +254,6 @@ ISR( PCINT0_vect )
 			LCD_writeChar( '-' );
 			LCD_writeChar( hex_chars[ rdoBuffer[3] >> 4 ] );
 			LCD_writeChar( hex_chars[ rdoBuffer[3] & 0x0F ] );
-			LCD_writeChar( '-' );
 		}
 		else
 		{
@@ -499,12 +499,12 @@ int main(void)
 			nextCommand = CMD_NOP;
 			RESET_TIMEOUT;
 		}
-		if( nextCommand == CMD_SLEEP )
+		else if( nextCommand == CMD_SLEEP )
 		{
 			nextCommand = CMD_NOP;
 			sleep();
 		}
-		if( nextCommand == CMD_CLOCKREAD )
+		else if( nextCommand == CMD_CLOCKREAD )
 		{
 			nextCommand = CMD_NOP;
 			// read clock and output on serial
@@ -520,7 +520,7 @@ int main(void)
 			serialWriteByte( '0' + second%10 );
 			serialWriteString( "\r\n" );
 		}
-		if( nextCommand == CMD_CLOCKSET )
+		else if( nextCommand == CMD_CLOCKSET )
 		{
 			nextCommand = CMD_NOP;
 			
@@ -536,7 +536,7 @@ int main(void)
 			setRTCClock( year, month, day, weekDay, hour, minute, second );
 			serialWriteString( "\r\nTime set\r\n" );
 		}
-		if( nextCommand == CMD_ALARMSET )
+		else if( nextCommand == CMD_ALARMSET )
 		{
 			nextCommand = CMD_NOP;
 			
@@ -547,6 +547,22 @@ int main(void)
 			
 			setRTCAlarm( day, hour, minute );
 			serialWriteString( "\r\nAlarm set\r\n" );
+		}
+		else if( nextCommand == CMD_RDO_ON  )
+		{
+			nextCommand = CMD_NOP;
+			
+			// Radio on
+			nRF24L01p_startRX();
+			serialWriteString( "\r\nRadio ON\r\n" );
+		}
+		else if( nextCommand == CMD_RDO_OFF )
+		{
+			nextCommand = CMD_NOP;
+			
+			// Radio off
+			nRF24L01p_powerDown();
+			serialWriteString( "\r\nRadio OFF\r\n" );
 		}
 
 		_delay_ms( 100 );
