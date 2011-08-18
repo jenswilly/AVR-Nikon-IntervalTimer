@@ -483,7 +483,7 @@ int main(void)
 
 	// Setup radio
 	nRF24L01p_init();
-	nRF24L01p_startRX();
+	nRF24L01p_powerDown();
 	
 	// OK to go to sleep
 	sleepAllowed = 1;
