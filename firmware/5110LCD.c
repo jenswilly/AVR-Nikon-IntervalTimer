@@ -327,6 +327,16 @@ void LCD_init ( void )
 	LCD_clear();
 }
 
+void LCD_powerDown()
+{
+	LCD_writeCommand( 0x24 );	// Power-down
+}
+
+void LCD_powerUp()
+{
+	LCD_writeCommand( 0x20 );	// Power on
+}
+
 /*--------------------------------------------------------------------------------------------------
   Name         :  LCD_writeCommand
   Description  :  Sends command to display controller.

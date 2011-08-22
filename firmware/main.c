@@ -75,6 +75,7 @@ volatile int sleepTimer;					// Seconds timer for sleep timeout
 volatile unsigned char keypad_mask;			// Bitmask for selecting MUX channel
 volatile unsigned char rdoBuffer[4];		// Buffer for nRF radio
 static char hex_chars[] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+volatile unsigned char lcdOn;
 
 // Timer1 compare match interrupt used for timeout to sleep
 ISR( TIMER1_COMPA_vect )
@@ -162,9 +163,13 @@ ISR(PCINT2_vect)
 	{
 		// Yes: external alarm triggered
 		
-		// Wake-up?
-		// TODO
-
+		// This interrupt might result in a MCU wake-up. So switch on LCD if it was on
+		if( !lcdOn )
+		{
+			LCD_powerUp();
+			lcdOn = 1;
+		}
+		
 		// LED on
 		PORTB |= (1<<PB2);
 		LCD_drawImage( nuke );
@@ -191,6 +196,13 @@ ISR(PCINT1_vect)
 		
 		// Yes: USB connected
 		sleepAllowed = 0;
+		
+		// This interrupt might result in a MCU wake-up. So switch on LCD if it was on
+		if( !lcdOn )
+		{
+			LCD_powerUp();
+			lcdOn = 1;
+		}
 		
 		// Power up 5110 LED
 		PORTB |= (1<<PB2);
@@ -237,6 +249,13 @@ ISR( PCINT0_vect )
 	{
 		// Yes: disable interrupts until we're done with this
 		cli();
+		
+		// This interrupt might result in a MCU wake-up. So switch on LCD if it was on
+		if( !lcdOn )
+		{
+			LCD_powerUp();
+			lcdOn = 1;
+		}
 		
 		// Do we have data ready (we should but...)
 		if( nRF24L01p_dataReady() )
@@ -289,6 +308,12 @@ ISR( PCINT0_vect )
 			return;
 		}
 			
+		if( !lcdOn )
+		{
+			LCD_powerUp();
+			lcdOn = 1;
+		}
+		
 		// Make sure LED is on
 		PORTB |= (1<<PB2);
 		
@@ -421,10 +446,11 @@ void sleep()
 	PORTB &= ~(1<<PB2);
 	
 	// Set "sleep" display
-	LCD_clear();
-	LCD_writeString_F( "     --     " );
-	_delay_ms( 200 );
-	
+//	LCD_clear();
+//	LCD_writeString_F( "     --     " );
+//	_delay_ms( 200 );
+	LCD_powerDown();
+	lcdOn = 0;
 	
 	// Select MUX to Y0 for center key
 	keypad_mask = 0;
@@ -450,8 +476,6 @@ void setupTimeoutCounter()
 	
 }
 
-
-
 int main(void)
 {
 	usartPtr = 0;
@@ -466,8 +490,14 @@ int main(void)
 	enable_serial();
 	enable_i2c();
 	
+	// Disable analog comparator and ADC to reduce power
+	// NOTE: these will *not* be switched on again since we're not using them
+	ACSR = (1<<ACD);		// Turn off Analog Comparator - this removes about 1uA
+	PRR |= (1<< PRADC);		// Shut down ADC
+	
 	// Initialize LCD
 	LCD_init();
+	lcdOn = 1;
 	_delay_ms( 200 );
 	LCD_writeString_F( "Ready" );
 	

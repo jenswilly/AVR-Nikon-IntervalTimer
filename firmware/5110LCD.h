@@ -47,7 +47,8 @@ void LCD_writeString_F ( const char *string);
 //void LCD_clearPixelNoUpdate ( unsigned char x, unsigned char y);
 //void LCD_drawLine ( unsigned char x1, unsigned char y1, unsigned char x2, unsigned char y2 );
 //void LCD_drawBorder (void );
-
+void LCD_powerDown();
+void LCD_powerUp();
 void LCD_drawImage( const unsigned char data[] );
 
 //void LCD_drawSplash (void );
