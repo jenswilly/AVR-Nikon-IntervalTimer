@@ -102,7 +102,10 @@ ISR( TIMER0_COMPA_vect )
 		keypad_mask = 0;
 	
 	PORTC &= 0b11111000;	// clear PC0 - PC2
-	PORTC |= keypad_mask;	// set current keypad_mask
+	
+	// Switch bits 0 and 2 because we swap S0 and S2 for better PCB layout
+	PORTC |= ((keypad_mask & 1) << 2) | (keypad_mask & 2) | ((keypad_mask & 4) >> 2);	// set current keypad_mask
+//	PORTC |= keypad_mask;	// set current keypad_mask
 }
 
 // Interrupt handler for USART receive complete
