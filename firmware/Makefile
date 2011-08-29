@@ -15,8 +15,8 @@
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
 DEVICE     = atmega328p
-#CLOCK      = 1500000
-CLOCK      = 12000000
+CLOCK      = 8000000
+# CLOCK      = 12000000
 PROGRAMMER = -c avrispmkII -P usb
 OBJECTS    = main.o 5110LCD.o PCF8563RTC.o nRF24L01p.o
 # FUSES      = -U lfuse:w:0xf7:m -U hfuse:w:0xdf:m -U efuse:w:0x00:m	# 168 

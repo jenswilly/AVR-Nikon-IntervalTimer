@@ -32,7 +32,9 @@
 
 /* 16-bit timer output compare value for timeout delay of approx. 1 seconds
  */
-#define TIMER_COMPARE_VALUE 11718	// ~5 secs: 12000000/1024/1 - 1 = 11717.75
+#define TIMER_COMPARE_VALUE ((F_CPU/1024)-1)
+// #define TIMER_COMPARE_VALUE 11718	// pre-calculated for 12 MHz: 12000000/1024/1 - 1 = 11717.75
+// #define TIMER_COMPARE_VALUE 7812	// pre-calculated for 8 MHz
 
 // Macros
 #define RESET_TIMEOUT TCNT1 = 0; sleepTimer=0	// Reset timeout counter macro
@@ -54,6 +56,7 @@ void setup_interrupts();
 void enable_serial();
 void serialWriteByte( char data );
 void serialWriteString( const char* string );
+void trigger();
 
 // Commands
 #define	CMD_NOP 0
@@ -64,6 +67,7 @@ void serialWriteString( const char* string );
 #define CMD_ALARMSET 5		// aDDHHMM
 #define CMD_RDO_OFF 6		// r0
 #define CMD_RDO_ON	7		// r1
+#define CMD_UPDATE_TIME 8
 
 // Global vars
 #define RX_BUF_SIZE	20
@@ -76,12 +80,16 @@ volatile unsigned char keypad_mask;			// Bitmask for selecting MUX channel
 volatile unsigned char rdoBuffer[4];		// Buffer for nRF radio
 static char hex_chars[] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 volatile unsigned char lcdOn;
+volatile int rdo_sequence = 0;
 
 // Timer1 compare match interrupt used for timeout to sleep
 ISR( TIMER1_COMPA_vect )
 {
 	// 1 second passed: increase counter
 	sleepTimer++;
+	
+	// Update time in display
+	nextCommand = CMD_UPDATE_TIME;	
 	
 	// Timeout reached: go to sleep if we're allowed to do so
 	if( sleepTimer >= SLEEP_TIMER )
@@ -103,9 +111,9 @@ ISR( TIMER0_COMPA_vect )
 	
 	PORTC &= 0b11111000;	// clear PC0 - PC2
 	
-	// Switch bits 0 and 2 because we swap S0 and S2 for better PCB layout
-	PORTC |= ((keypad_mask & 1) << 2) | (keypad_mask & 2) | ((keypad_mask & 4) >> 2);	// set current keypad_mask
-//	PORTC |= keypad_mask;	// set current keypad_mask
+// Switch bits 0 and 2 because we swap S0 and S2 for better PCB layout - NO let's not do that: the wires cross on the PCB anyway so everything'll work out
+//	PORTC |= ((keypad_mask & 1) << 2) | (keypad_mask & 2) | ((keypad_mask & 4) >> 2);	// set current keypad_mask
+	PORTC |= keypad_mask;	// set current keypad_mask
 }
 
 // Interrupt handler for USART receive complete
@@ -260,10 +268,49 @@ ISR( PCINT0_vect )
 			lcdOn = 1;
 		}
 		
+		// LEDs on
+		PORTB |= (1<<PB2);
+		
 		// Do we have data ready (we should but...)
 		if( nRF24L01p_dataReady() )
 		{
 			nRF24L01p_readData( (uint8_t*)rdoBuffer );
+			
+			LCD_gotoXY( 0, 0 );
+			switch( rdoBuffer[0] )
+			{
+				case 0x17: 
+					LCD_writeString_F( "< left     $" );
+					break;
+					
+				case 0x1E:
+					LCD_writeString_F( "> down     $" ); 
+					break;
+					
+				case 0x1B: 
+					LCD_writeString_F( "; right    $" ); 
+					break;
+					
+				case 0x1D:
+					LCD_writeString_F( "= up       $" ); 
+					break;
+					
+				case 0x0F: 
+					LCD_writeString_F( "@ select   $" ); 
+					break;
+					
+				default: 
+					LCD_writeString_F( "? NOP      $" ); 
+					break;
+			}
+			
+			rdo_sequence = rdoBuffer[1] << 8 | rdoBuffer[2];
+			LCD_writeChar( hex_chars[ rdo_sequence >> 12 ] );
+			LCD_writeChar( hex_chars[ (rdo_sequence >> 8) & 0x0F ] );
+			LCD_writeChar( '-' );
+			LCD_writeChar( hex_chars[ (rdo_sequence & 0x00F0) >> 4 ] );
+			LCD_writeChar( hex_chars[ (rdo_sequence & 0x000F) ] );
+			/*
 			LCD_clear();
 			LCD_writeChar( hex_chars[ rdoBuffer[0] >> 4 ] );
 			LCD_writeChar( hex_chars[ rdoBuffer[0] & 0x0F ] );
@@ -276,6 +323,7 @@ ISR( PCINT0_vect )
 			LCD_writeChar( '-' );
 			LCD_writeChar( hex_chars[ rdoBuffer[3] >> 4 ] );
 			LCD_writeChar( hex_chars[ rdoBuffer[3] & 0x0F ] );
+			 */
 		}
 		else
 		{
@@ -320,32 +368,35 @@ ISR( PCINT0_vect )
 		// Make sure LED is on
 		PORTB |= (1<<PB2);
 		
+		// Cursor at 0,0
+		LCD_gotoXY( 0, 0 );
+		
 		// Which button was pressed?
 		switch( keypad_mask )
 		{
 			case 0x00:
 				// Center button
-				LCD_writeChar( '@' );
+				LCD_writeString_F( "@ select    " );
 				break;
 				
 			case 0x01:
 				// Up
-				LCD_writeChar( '=' );
+				LCD_writeString_F( "= up        " );
 				break;
 				
 			case 0x02:
 				// Down
-				LCD_writeChar( '>' );
+				LCD_writeString_F( "> down      " );
 				break;
 				
 			case 0x03:
 				// Left
-				LCD_writeChar( '<' );
+				LCD_writeString_F( "< left      " );
 				break;
 				
 			case 0x04:
 				// Right
-				LCD_writeChar( ';' );
+				LCD_writeString_F( "; right     " );
 				break;
 		}
 		
@@ -449,9 +500,6 @@ void sleep()
 	PORTB &= ~(1<<PB2);
 	
 	// Set "sleep" display
-//	LCD_clear();
-//	LCD_writeString_F( "     --     " );
-//	_delay_ms( 200 );
 	LCD_powerDown();
 	lcdOn = 0;
 	
@@ -476,6 +524,20 @@ void setupTimeoutCounter()
 	TCCR0B = (1<< CS02) | (1<< CS00);	// Start clock with prescaler 1024
 	OCR0A = KEYPAD_POLL_TIMER_COMPARE_VALUE;
 	TIMSK0 |= (1<< OCIE0A);				// Enable timer0 output compare match interrupt
+	
+}
+
+void trigger()
+{
+	// Disable interrupts
+	cli();
+	
+	// Disable keypad polling
+	
+	
+	
+	
+	// Re-enable keypad polling and interrupts
 	
 }
 
@@ -516,7 +578,8 @@ int main(void)
 
 	// Setup radio
 	nRF24L01p_init();
-	nRF24L01p_powerDown();
+//	nRF24L01p_powerDown();
+	nRF24L01p_startRX();
 	
 	// OK to go to sleep
 	sleepAllowed = 1;
@@ -597,8 +660,25 @@ int main(void)
 			nRF24L01p_powerDown();
 			serialWriteString( "\r\nRadio OFF\r\n" );
 		}
+		else if( nextCommand == CMD_UPDATE_TIME )
+		{
+			// Update time in display
+			nextCommand = CMD_NOP;
+			
+			// Read clock
+			readRTCClock( &year, &month, &day, &weekDay, &hour, &minute, &second );
+			LCD_gotoXY( 0, 5 );
+			LCD_writeChar( '0' + hour/10 );
+			LCD_writeChar( '0' + hour%10 );
+			LCD_writeChar( ':' );
+			LCD_writeChar( '0' + minute/10 );
+			LCD_writeChar( '0' + minute%10 );
+			LCD_writeChar( ':' );
+			LCD_writeChar( '0' + second/10 );
+			LCD_writeChar( '0' + second%10 );
+		}
 
-		_delay_ms( 100 );
+		_delay_ms( 10 );
 	}
 
     return 0;
