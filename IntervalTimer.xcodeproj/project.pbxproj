@@ -14,6 +14,9 @@
 		47394E6F13E2D730002D024D /* images.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = images.h; sourceTree = "<group>"; };
 		474BB43113E4748300D9EEDE /* PCF8563RTC.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = PCF8563RTC.c; sourceTree = "<group>"; };
 		474BB43213E4748300D9EEDE /* PCF8563RTC.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PCF8563RTC.h; sourceTree = "<group>"; };
+		476F8835141A91C7004086AC /* states.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = states.c; sourceTree = "<group>"; };
+		476F8836141A91C7004086AC /* states.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = states.h; sourceTree = "<group>"; };
+		478198BA142610170085BF93 /* main.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = main.h; sourceTree = "<group>"; };
 		47BF62A313F5AF6A000C4C4A /* nRF24L01p.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = nRF24L01p.c; sourceTree = "<group>"; };
 		47BF62A413F5AF6A000C4C4A /* nRF24L01p.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = nRF24L01p.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -29,6 +32,7 @@
 		470E52D213DD832F00C82516 /* firmware */ = {
 			isa = PBXGroup;
 			children = (
+				470E52D413DD832F00C82516 /* Makefile */,
 				47BF62A313F5AF6A000C4C4A /* nRF24L01p.c */,
 				47BF62A413F5AF6A000C4C4A /* nRF24L01p.h */,
 				474BB43113E4748300D9EEDE /* PCF8563RTC.c */,
@@ -36,8 +40,10 @@
 				470E52E613DD85A800C82516 /* 5110LCD.c */,
 				470E52E713DD85A800C82516 /* 5110LCD.h */,
 				470E52D313DD832F00C82516 /* main.c */,
-				470E52D413DD832F00C82516 /* Makefile */,
+				478198BA142610170085BF93 /* main.h */,
 				47394E6F13E2D730002D024D /* images.h */,
+				476F8835141A91C7004086AC /* states.c */,
+				476F8836141A91C7004086AC /* states.h */,
 			);
 			path = firmware;
 			sourceTree = "<group>";

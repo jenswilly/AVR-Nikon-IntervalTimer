@@ -12,7 +12,6 @@
 //
 //********************************************************
 #ifndef _3310_ROUTINES_H_
-
 #define _3310_ROUTINES_H_
 
 #include <avr/pgmspace.h>

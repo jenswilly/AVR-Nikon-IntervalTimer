@@ -39,35 +39,29 @@
 // Macros
 #define RESET_TIMEOUT TCNT1 = 0; sleepTimer=0	// Reset timeout counter macro
 
+#include <stdio.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <util/delay.h>
+#include "main.h"
 #include "5110LCD.h"
 #include"PCF8563RTC.h"
 #include "images.h"
 #include "nRF24L01p.h"
-
-// Prototypes
-void enable_spi();
-void sleep();
-void setup_ports();
-void setup_interrupts();
-void enable_serial();
-void serialWriteByte( char data );
-void serialWriteString( const char* string );
-void trigger();
+#include "states.h"
 
 // Commands
-#define	CMD_NOP 0
-#define	CMD_SLEEP 1
-#define	CMD_STATUS 2		// s
-#define	CMD_CLOCKSET 3		// zYYMMDDW-HHMMSS
-#define	CMD_CLOCKREAD 4		// q
-#define CMD_ALARMSET 5		// aDDHHMM
-#define CMD_RDO_OFF 6		// r0
-#define CMD_RDO_ON	7		// r1
-#define CMD_UPDATE_TIME 8
+#define	CMD_NOP			0
+#define	CMD_SLEEP		1
+#define	CMD_STATUS		2	// s
+#define	CMD_CLOCKSET	3	// zYYMMDDW-HHMMSS
+#define	CMD_CLOCKREAD	4	// q
+#define CMD_ALARMSET	5	// aHHMM
+#define CMD_RDO_OFF		6	// r0
+#define CMD_RDO_ON		7	// r1
+#define CMD_UPDATE_TIME	8
+#define CMD_PROGRAM		9	// p[HHMM|T???],IIII,SSSSS	HHMM = start time; IIII = interval delay in half seconds; SSSSS = number of shots
 
 // Global vars
 #define RX_BUF_SIZE	20
@@ -81,6 +75,21 @@ volatile unsigned char rdoBuffer[4];		// Buffer for nRF radio
 static char hex_chars[] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 volatile unsigned char lcdOn;
 volatile int rdo_sequence = 0;
+
+unsigned char global_mode = 0;
+
+// sequence
+volatile int seq_total_shots;
+volatile int seq_remain_shots;
+volatile int seq_delay;
+
+// Serial stream
+static int uart_putchar( char c, FILE *stream );
+FILE mystdout = FDEV_SETUP_STREAM( uart_putchar, NULL, _FDEV_SETUP_WRITE );
+
+// LCD stream
+static int LCD_putchar( char c, FILE *stream );
+FILE lcd = FDEV_SETUP_STREAM( LCD_putchar, NULL, _FDEV_SETUP_WRITE );
 
 // Timer1 compare match interrupt used for timeout to sleep
 ISR( TIMER1_COMPA_vect )
@@ -157,6 +166,9 @@ ISR( USART_RX_vect )
 			else if( usartBuffer[1] == '1' )
 				nextCommand = CMD_RDO_ON;
 		}
+		else if( usartBuffer[0] == 'p' )
+			nextCommand = CMD_PROGRAM;
+		
 
 		// Reset buffer
 		usartPtr = 0; 
@@ -181,9 +193,14 @@ ISR(PCINT2_vect)
 			lcdOn = 1;
 		}
 		
-		// LED on
+		// LCD LED on
 		PORTB |= (1<<PB2);
-		LCD_drawImage( nuke );
+//		LCD_drawImage( nuke );
+		
+		// Snap it
+		trigger();
+		global_mode &= ~GLOBAL_TIMED;
+		global_mode &= ~GLOBAL_TRIGGERED;
 
 		RESET_TIMEOUT;
 	}
@@ -220,7 +237,7 @@ ISR(PCINT1_vect)
 		
 		// Clear LCD and draw image
 		LCD_clear();
-		LCD_writeString_F( "USB connect" );
+		fprintf( &lcd, "USB connect" );
 		
 		// And clear USART buffer
 		usartPtr = 0;
@@ -239,7 +256,7 @@ ISR(PCINT1_vect)
 		
 		// Clear and set text
 		LCD_clear();
-		LCD_writeString_F( "USB disconn." );
+		fprintf( &lcd, "USB disconn." );
 		
 		// Wait a sec
 		_delay_ms( 2000 );
@@ -297,6 +314,7 @@ ISR( PCINT0_vect )
 					
 				case 0x0F: 
 					LCD_writeString_F( "@ select   $" ); 
+					trigger();
 					break;
 					
 				default: 
@@ -310,20 +328,6 @@ ISR( PCINT0_vect )
 			LCD_writeChar( '-' );
 			LCD_writeChar( hex_chars[ (rdo_sequence & 0x00F0) >> 4 ] );
 			LCD_writeChar( hex_chars[ (rdo_sequence & 0x000F) ] );
-			/*
-			LCD_clear();
-			LCD_writeChar( hex_chars[ rdoBuffer[0] >> 4 ] );
-			LCD_writeChar( hex_chars[ rdoBuffer[0] & 0x0F ] );
-			LCD_writeChar( '-' );
-			LCD_writeChar( hex_chars[ rdoBuffer[1] >> 4 ] );
-			LCD_writeChar( hex_chars[ rdoBuffer[1] & 0x0F ] );
-			LCD_writeChar( '-' );
-			LCD_writeChar( hex_chars[ rdoBuffer[2] >> 4 ] );
-			LCD_writeChar( hex_chars[ rdoBuffer[2] & 0x0F ] );
-			LCD_writeChar( '-' );
-			LCD_writeChar( hex_chars[ rdoBuffer[3] >> 4 ] );
-			LCD_writeChar( hex_chars[ rdoBuffer[3] & 0x0F ] );
-			 */
 		}
 		else
 		{
@@ -376,27 +380,41 @@ ISR( PCINT0_vect )
 		{
 			case 0x00:
 				// Center button
-				LCD_writeString_F( "@ select    " );
+				// If there's an action, perform that
+				if( currentState->actionMethod )
+					currentState->actionMethod();
+				// Otherwise, switch state if a center state is specified
+				else if( currentState->keyCenterState )
+					setState( currentState->keyCenterState );
+//				LCD_writeString_F( "@ select    " );
 				break;
 				
 			case 0x01:
 				// Up
-				LCD_writeString_F( "= up        " );
+				if( currentState->keyUpState )
+					setState( currentState->keyUpState );
+//				LCD_writeString_F( "= up        " );
 				break;
 				
 			case 0x02:
 				// Down
-				LCD_writeString_F( "> down      " );
+				if( currentState->keyDownState )
+					setState( currentState->keyDownState );
+//				LCD_writeString_F( "> down      " );
 				break;
 				
 			case 0x03:
 				// Left
-				LCD_writeString_F( "< left      " );
+				if( currentState->keyLeftState )
+					setState( currentState->keyLeftState );
+//				LCD_writeString_F( "< left      " );
 				break;
 				
 			case 0x04:
 				// Right
-				LCD_writeString_F( "; right     " );
+				   if( currentState->keyRightState )
+				   setState( currentState->keyRightState );
+//				LCD_writeString_F( "; right     " );
 				break;
 		}
 		
@@ -477,6 +495,23 @@ void enable_i2c()
 	TWBR = TWI_BITRATE;		// Bit rate = 52 for 100 kHz
 }
 
+static int LCD_putchar( char c, FILE *stream )
+{
+	LCD_writeChar( c );
+	return 0;
+}
+
+static int uart_putchar(char c, FILE *stream)
+{
+	// Wait until we're ready to send
+	while( !(UCSR0A & (1<< UDRE0)))
+		;
+	
+	// Send byte
+	UDR0 = c;
+	return 0;
+}
+
 void serialWriteByte( char data )
 {
 	// Wait until we're ready to send
@@ -512,8 +547,9 @@ void sleep()
 	asm("sleep");					// nighty, night.
 }
 
-void setupTimeoutCounter()
+void setup_timers()
 {
+	// Timer1 (16bit): sleep timeout countdown
 	TCCR1A = 0;							// Normal mode, output compare pins disabled	
 	TCCR1B = (1<< WGM12) | (1<< CS12) | (1<< CS10);	// CTC, top at OCR1A, prescaler 1024
 	OCR1A = TIMER_COMPARE_VALUE;		// Set timer compare value
@@ -532,13 +568,33 @@ void trigger()
 	// Disable interrupts
 	cli();
 	
-	// Disable keypad polling
+	// Set PB1 -> output
+	DDRB |= (1<< PB1);
 	
+	// Set high
+//	PORTB |= (1<< PB1);		// Is already high, since we use the pull-up when PB1 is input
 	
+	// Select MUX channel 5
+	PORTC |= (1<< PC2) | (1<< PC0);
 	
+	// Pull low to activate trigger
+	PORTB &= ~(1<< PB1);
+	
+	// wait a while
+	_delay_ms( 100 );
+	
+	// Set high
+	PORTB |= (1<< PB1);
+	
+	// Set PB1 -> input
+	DDRB &= ~(1<< PB1);
+	
+	// Reset MUX channel to last used keypad input mask
+	PORTC &= 0b11111000;	// clear PC0 - PC2
+	PORTC |= keypad_mask;	// set current keypad_mask
 	
 	// Re-enable keypad polling and interrupts
-	
+	sei();
 }
 
 int main(void)
@@ -564,13 +620,19 @@ int main(void)
 	LCD_init();
 	lcdOn = 1;
 	_delay_ms( 200 );
-	LCD_writeString_F( "Ready" );
+
+	// LCD backlight on
+	PORTB |= (1<<PB2);
+	
+	// Enter initial state
+	currentState = &state_idle;
+	currentState->entryMethod();
 	
 	// Initialize RTC
 	initRTC();
 	
 	// Setup timeout counter
-	setupTimeoutCounter();
+	setup_timers();
 	
 	// Enable interrupts
 	setup_interrupts();
@@ -578,8 +640,8 @@ int main(void)
 
 	// Setup radio
 	nRF24L01p_init();
-//	nRF24L01p_powerDown();
-	nRF24L01p_startRX();
+	nRF24L01p_powerDown();
+//	nRF24L01p_startRX();
 	
 	// OK to go to sleep
 	sleepAllowed = 1;
@@ -605,8 +667,8 @@ int main(void)
 			nextCommand = CMD_NOP;
 			// read clock and output on serial
 			readRTCClock( &year, &month, &day, &weekDay, &hour, &minute, &second );
-			serialWriteString( "Clock:" );
-			serialWriteByte( '0' + hour/10 );
+			fprintf( &mystdout, "Clock: %02d:%02d:%02d\r\n", hour, minute, second );
+/*			serialWriteByte( '0' + hour/10 );
 			serialWriteByte( '0' + hour%10 );
 			serialWriteByte( ':' );
 			serialWriteByte( '0' + minute/10 );
@@ -615,6 +677,7 @@ int main(void)
 			serialWriteByte( '0' + second/10 );
 			serialWriteByte( '0' + second%10 );
 			serialWriteString( "\r\n" );
+ */
 		}
 		else if( nextCommand == CMD_CLOCKSET )
 		{
@@ -636,12 +699,11 @@ int main(void)
 		{
 			nextCommand = CMD_NOP;
 			
-			// Parse format: aDDHHMM
-			day = ((usartBuffer[1] - '0') * 10) + (usartBuffer[2] - '0');
-			hour = ((usartBuffer[3] - '0') * 10) + (usartBuffer[4] - '0');
-			minute = ((usartBuffer[5] - '0') * 10) + (usartBuffer[6] - '0');
+			// Parse format: aHHMM
+			hour = ((usartBuffer[1] - '0') * 10) + (usartBuffer[2] - '0');
+			minute = ((usartBuffer[3] - '0') * 10) + (usartBuffer[4] - '0');
 			
-			setRTCAlarm( day, hour, minute );
+			setRTCAlarm( hour, minute );
 			serialWriteString( "\r\nAlarm set\r\n" );
 		}
 		else if( nextCommand == CMD_RDO_ON  )
@@ -650,6 +712,7 @@ int main(void)
 			
 			// Radio on
 			nRF24L01p_startRX();
+			global_mode |= GLOBAL_RDO;
 			serialWriteString( "\r\nRadio ON\r\n" );
 		}
 		else if( nextCommand == CMD_RDO_OFF )
@@ -658,6 +721,7 @@ int main(void)
 			
 			// Radio off
 			nRF24L01p_powerDown();
+			global_mode &= ~GLOBAL_RDO;
 			serialWriteString( "\r\nRadio OFF\r\n" );
 		}
 		else if( nextCommand == CMD_UPDATE_TIME )
@@ -665,17 +729,46 @@ int main(void)
 			// Update time in display
 			nextCommand = CMD_NOP;
 			
-			// Read clock
-			readRTCClock( &year, &month, &day, &weekDay, &hour, &minute, &second );
-			LCD_gotoXY( 0, 5 );
-			LCD_writeChar( '0' + hour/10 );
-			LCD_writeChar( '0' + hour%10 );
-			LCD_writeChar( ':' );
-			LCD_writeChar( '0' + minute/10 );
-			LCD_writeChar( '0' + minute%10 );
-			LCD_writeChar( ':' );
-			LCD_writeChar( '0' + second/10 );
-			LCD_writeChar( '0' + second%10 );
+			if( currentState->recurringMethod )
+				currentState->recurringMethod();
+		}
+		else if( nextCommand == CMD_PROGRAM )
+		{
+			nextCommand = CMD_NOP;
+			// Format: pHHMM|T???,IIII,SSSSS
+			//		   01234 123456789012345
+			//		   0			  1
+			
+			// triggered or timed?
+			if( usartBuffer[1] == 'T' )
+			{
+				// Triggered (nevermind chars 2-4)
+				global_mode |= GLOBAL_TRIGGERED;
+				global_mode &= ~GLOBAL_TIMED;
+				fprintf( &mystdout, "\r\nManual triggering\r\n" );
+			}
+			else
+			{
+				// Timed
+				global_mode &= ~GLOBAL_TRIGGERED;
+				global_mode |= GLOBAL_TIMED;
+				
+				// Parse format: pHHMM
+				hour = ((usartBuffer[1] - '0') * 10) + (usartBuffer[2] - '0');
+				minute = ((usartBuffer[3] - '0') * 10) + (usartBuffer[4] - '0');
+				
+				setRTCAlarm( hour, minute );
+				fprintf( &mystdout, "\r\nAlarm set: %02d:%02d\r\n", hour, minute );
+			}
+			
+			// Set delay (in half seconds)
+			seq_delay = ((usartBuffer[6] - '0') * 1000) + ((usartBuffer[7] - '0') * 100) + ((usartBuffer[8] - '0') * 10) + (usartBuffer[9] - '0');
+			
+			// Set total shots
+			seq_total_shots = ((usartBuffer[11] - '0') * 10000) + ((usartBuffer[12] - '0') * 1000) + ((usartBuffer[13] - '0') * 100) + ((usartBuffer[14] - '0') * 10) + (usartBuffer[15] - '0');
+			seq_remain_shots = seq_total_shots;
+			
+			fprintf( &mystdout, "Sequence set: %d shots, %d seconds delay\r\n", seq_total_shots, seq_delay/2 );
 		}
 
 		_delay_ms( 10 );

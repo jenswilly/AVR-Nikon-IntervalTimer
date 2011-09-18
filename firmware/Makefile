@@ -18,7 +18,7 @@ DEVICE     = atmega328p
 CLOCK      = 8000000
 # CLOCK      = 12000000
 PROGRAMMER = -c avrispmkII -P usb
-OBJECTS    = main.o 5110LCD.o PCF8563RTC.o nRF24L01p.o
+OBJECTS    = main.o 5110LCD.o PCF8563RTC.o nRF24L01p.o states.o
 # FUSES      = -U lfuse:w:0xf7:m -U hfuse:w:0xdf:m -U efuse:w:0x00:m	# 168 
 FUSES	   = -U lfuse:w:0xf7:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m		# 328
 #FUSES	   = -U lfuse:w:0x77:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m		# 328 at 1.5 MHz (CLKDIV)
@@ -32,7 +32,7 @@ FUSES	   = -U lfuse:w:0xf7:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m		# 328
 # Tune the lines below only if you know what you are doing:
 
 AVRDUDE = avrdude $(PROGRAMMER) -p $(DEVICE)
-COMPILE = avr-gcc -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(DEVICE)
+COMPILE = avr-gcc -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(DEVICE) -fpack-struct
 
 # symbolic targets:
 all:	clean main.hex
