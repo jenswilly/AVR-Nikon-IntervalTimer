@@ -99,6 +99,7 @@
 		470E52CA13DD832E00C82516 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				LastUpgradeCheck = 0420;
 				ORGANIZATIONNAME = "Greener Pastures";
 			};
 			buildConfigurationList = 470E52CD13DD832E00C82516 /* Build configuration list for PBXProject "IntervalTimer" */;

@@ -44,6 +44,7 @@
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <util/delay.h>
+#include <avr/eeprom.h>
 #include "main.h"
 #include "5110LCD.h"
 #include"PCF8563RTC.h"
@@ -65,6 +66,7 @@
 
 // Global vars
 #define RX_BUF_SIZE	20
+unsigned char EEMEM eepromLCD_VOP;
 unsigned char sleepAllowed;
 unsigned char usartBuffer[RX_BUF_SIZE];		// USART receive buffer
 volatile unsigned char usartPtr;			// USART buffer pointer
@@ -120,8 +122,6 @@ ISR( TIMER0_COMPA_vect )
 	
 	PORTC &= 0b11111000;	// clear PC0 - PC2
 	
-// Switch bits 0 and 2 because we swap S0 and S2 for better PCB layout - NO let's not do that: the wires cross on the PCB anyway so everything'll work out
-//	PORTC |= ((keypad_mask & 1) << 2) | (keypad_mask & 2) | ((keypad_mask & 4) >> 2);	// set current keypad_mask
 	PORTC |= keypad_mask;	// set current keypad_mask
 }
 
@@ -597,6 +597,75 @@ void trigger()
 	sei();
 }
 
+// Main loop for adjust LCD contrast mode
+void adjust_LCD_contrast()
+{
+	// First, configure timer for keypad polling
+	// Timer0 (8bit) for keypad polling
+	TCCR0A = (1<< WGM01);				// Mode 2: CTC
+	TCCR0B = (1<< CS02) | (1<< CS00);	// Start clock with prescaler 1024
+	OCR0A = KEYPAD_POLL_TIMER_COMPARE_VALUE;
+	TIMSK0 |= (1<< OCIE0A);				// Enable timer0 output compare match interrupt
+	
+	// Read existing LCD contrast value
+	uint8_t contrast = eeprom_read_byte( &eepromLCD_VOP );
+	
+	// Show
+	LCD_gotoXY(0,0);
+	fprintf( &lcd, "LCD contrast" );
+	fprintf( &lcd, "            " );
+	fprintf( &lcd, "---- %02x ----", contrast );
+	fprintf( &lcd, "            " );
+	fprintf( &lcd, "------------" );
+	fprintf( &lcd, "XXXXXXXXXXXX" );
+	
+	// Main loop
+	for( ;; )
+	{
+		// MUX channel 01: up
+		PORTC &= 0b11111000;
+		PORTC |= 0b00000001;
+		_delay_ms( 30 );
+		if( !(PINB & (1<< PB1)) )
+		{
+			// UP is pressed: increase contrast
+			contrast++;
+			
+			if( contrast == 0 )
+				contrast = 0x80;
+		}
+		
+		// MUX channel 02: down
+		PORTC &= 0b11111000;
+		PORTC |= 0b00000010;
+		_delay_ms( 30 );
+		if( !(PINB & (1<< PB1)) )
+		{
+			// DOWN is pressed: decrease contrast
+			contrast--;
+			
+			if( contrast == 0x7F )
+				contrast = 0xFF;
+		}
+
+		// Make double-sure that contrast is between 0x80 and 0xFF
+		if( contrast >= 0x80 && contrast <= 0xFF )
+		{
+			// Set VOP
+			LCD_writeCommand( 0x21 );  // LCD Extended Commands.
+			LCD_writeCommand( contrast );  // Set LCD Vop (Contrast): straight=0xA8, slight up=0xAC
+			LCD_writeCommand( 0x20 );  // LCD Standard Commands, Horizontal addressing mode.
+			
+			// Write to EEPROM
+			eeprom_write_byte( &eepromLCD_VOP, contrast );
+		}
+
+		// Update display
+		LCD_gotoXY( 0, 2 );
+		fprintf( &lcd, "---- %02x ----", contrast );
+	}
+}
+
 int main(void)
 {
 	usartPtr = 0;
@@ -618,11 +687,30 @@ int main(void)
 	
 	// Initialize LCD
 	LCD_init();
+	
+	// Set VOP from EEPROM
+	LCD_writeCommand( 0x21 );  // LCD Extended Commands.
+	LCD_writeCommand( eeprom_read_byte( &eepromLCD_VOP ));  // Set LCD Vop (Contrast): straight=0xA8, slight up=0xAC
+	LCD_writeCommand( 0x20 );  // LCD Standard Commands, Horizontal addressing mode.
+
 	lcdOn = 1;
 	_delay_ms( 200 );
 
 	// LCD backlight on
 	PORTB |= (1<<PB2);
+	
+	// Mode check: run or setup LCD contrast?
+	// MUX channel is preset to 0: center button
+	if( !(PINB & (1<< PB1)) )
+	{
+		// Button pressed: goto adjust LCD mode
+		// NOTE: RTC, timers and interrupts are *not* yet set up
+		// NOTE: this method will never return
+		adjust_LCD_contrast();
+	}
+	
+	// Normal mode: continue execution
+	
 	
 	// Enter initial state
 	currentState = &state_idle;

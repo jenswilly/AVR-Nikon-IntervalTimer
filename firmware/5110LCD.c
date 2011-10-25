@@ -323,7 +323,7 @@ void LCD_init ( void )
 	SET_RST_PIN;
 			  
 	LCD_writeCommand( 0x21 );  // LCD Extended Commands.
-	LCD_writeCommand( 0xB8 );  // Set LCD Vop (Contrast): straight=0xA8, slight up=0xAC
+	LCD_writeCommand( 0x95 );  // Set LCD Vop (Contrast): straight=0xA8, slight up=0xAC
 	LCD_writeCommand( 0x04 );  // Set Temp coefficent.
 	LCD_writeCommand( 0x15 );  // LCD bias mode 1:48.
 	LCD_writeCommand( 0x20 );  // LCD Standard Commands, Horizontal addressing mode.
